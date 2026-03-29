@@ -1,0 +1,2417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EPC Structural Design — Pipe Rack Analyzer</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"}}
+</script>
+<style>
+:root{--primary:#1a3a5c;--accent:#e8a020;--success:#28a745;--danger:#dc3545;--warn:#ffc107;--bg:#0f1e2e;--card:#162840;--border:#1e3a5c;--text:#d0e4f7;--muted:#7a9abb}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:13px}
+.navbar{background:var(--primary)!important;border-bottom:2px solid var(--accent)}
+.navbar-brand{color:var(--accent)!important;font-weight:700;font-size:1.1rem;letter-spacing:.05em}
+.nav-tabs .nav-link{color:var(--muted);border:none;border-bottom:2px solid transparent;background:none;padding:.5rem 1rem}
+.nav-tabs .nav-link.active,.nav-tabs .nav-link:hover{color:var(--accent);border-bottom:2px solid var(--accent);background:none}
+.nav-tabs{border-bottom:1px solid var(--border)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px}
+.card-header{background:var(--primary);border-bottom:1px solid var(--border);font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:.5rem 1rem}
+.table{color:var(--text);font-size:12px}
+.table thead th{background:var(--primary);color:var(--accent);border-color:var(--border);font-size:11px;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;padding:.4rem .6rem}
+.table td,.table th{border-color:var(--border);vertical-align:middle;padding:.35rem .6rem}
+.table-hover tbody tr:hover{background:rgba(30,58,92,.4)}
+.form-control,.form-select{background:#0d1e32;border-color:var(--border);color:var(--text);font-size:12px}
+.form-control:focus,.form-select:focus{background:#0d1e32;border-color:var(--accent);color:var(--text);box-shadow:0 0 0 2px rgba(232,160,32,.25)}
+.form-label{font-size:11px;color:var(--muted);margin-bottom:.2rem}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#000}
+.btn-primary:hover{background:#d4911c;border-color:#d4911c;color:#000}
+.btn-outline-secondary{border-color:var(--border);color:var(--muted)}
+.btn-sm{font-size:11px;padding:.2rem .5rem}
+.badge-pass{background:#1a4d2e;color:#5bdb7f;font-size:10px;padding:2px 6px;border-radius:3px}
+.badge-fail{background:#4d1a1a;color:#ff6b6b;font-size:10px;padding:2px 6px;border-radius:3px}
+.badge-marg{background:#4d3d00;color:#ffc107;font-size:10px;padding:2px 6px;border-radius:3px}
+.badge-unch{background:#1e3a5c;color:#7a9abb;font-size:10px;padding:2px 6px;border-radius:3px}
+.uc-bar{height:6px;border-radius:3px;background:var(--border);margin-top:2px}
+.uc-fill{height:100%;border-radius:3px;max-width:100%}
+.sidebar-nav .nav-link{color:var(--muted);font-size:12px;padding:.3rem .8rem}
+.sidebar-nav .nav-link.active{color:var(--accent);background:rgba(232,160,32,.1);border-radius:4px}
+.modal-content{background:var(--card);border:1px solid var(--border)}
+.modal-header{background:var(--primary);border-bottom:1px solid var(--border)}
+.modal-title{color:var(--accent);font-size:.9rem}
+.modal-footer{border-top:1px solid var(--border)}
+.input-group-text{background:#0d1e32;border-color:var(--border);color:var(--muted);font-size:11px}
+select option{background:#0d1e32}
+.run-step{display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;border-radius:6px;border:1px solid var(--border);margin-bottom:.5rem;background:rgba(22,40,64,.5)}
+.run-step .icon{font-size:1.2rem;width:1.5rem;text-align:center}
+.run-step .label{flex:1;font-size:13px}
+.run-step .btn{white-space:nowrap}
+.step-pending .icon{color:var(--muted)}
+.step-done .icon{color:var(--success)}
+.step-fail .icon{color:var(--danger)}
+.step-run .icon{color:var(--accent)}
+.log-box{background:#050d16;border:1px solid var(--border);border-radius:4px;padding:.5rem;font-family:monospace;font-size:11px;height:150px;overflow-y:auto;color:#5bdb7f}
+.stat-card{background:var(--primary);border-radius:6px;padding:.75rem 1rem;text-align:center}
+.stat-card .num{font-size:1.8rem;font-weight:700;color:var(--accent);line-height:1}
+.stat-card .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+#rack-svg{width:100%;background:#050d16;border:1px solid var(--border);border-radius:4px}
+.tooltip-inner{background:var(--primary);font-size:11px}
+hr{border-color:var(--border)}
+/* ── 3D Viewer ─────────────────────────────────────── */
+#tab3D{padding:0!important}
+.viewer-wrap{display:flex;height:calc(100vh - 96px);overflow:hidden}
+.model-tree{width:220px;min-width:180px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.prop-panel{width:260px;min-width:220px;background:var(--card);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel-head{background:var(--primary);padding:.4rem .7rem;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:.35rem}
+.panel-body::-webkit-scrollbar{width:4px}
+.panel-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.vp-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.vp-toolbar{background:var(--primary);border-bottom:1px solid var(--border);padding:.3rem .5rem;display:flex;gap:.3rem;align-items:center;flex-shrink:0}
+.vp-toolbar .btn{font-size:11px;padding:.15rem .45rem;border-color:var(--border);color:var(--muted)}
+.vp-toolbar .btn.active,.vp-toolbar .btn:hover{border-color:var(--accent);color:var(--accent)}
+.vp-toolbar .sep{width:1px;background:var(--border);height:20px;margin:0 .2rem}
+#viewport3d{flex:1;display:block;background:#080f1a}
+#viewport3d canvas{display:block}
+/* Model tree nodes */
+.tree-node{user-select:none}
+.tree-row{display:flex;align-items:center;gap:.3rem;padding:.18rem .3rem;border-radius:3px;cursor:pointer;font-size:11.5px;white-space:nowrap;overflow:hidden}
+.tree-row:hover{background:rgba(232,160,32,.08)}
+.tree-row.active{background:rgba(232,160,32,.18);color:var(--accent)}
+.tree-toggle{width:14px;height:14px;display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0}
+.tree-icon{font-size:12px;flex-shrink:0}
+.tree-label{overflow:hidden;text-overflow:ellipsis;flex:1;font-size:11px}
+.tree-count{font-size:9px;color:var(--muted);flex-shrink:0}
+.tree-children{padding-left:14px}
+/* Property panel */
+.prop-group{margin-bottom:.5rem}
+.prop-group-title{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);padding:.2rem .3rem;border-bottom:1px solid var(--border);margin-bottom:.3rem}
+.prop-row{display:flex;padding:.18rem .3rem;border-radius:2px;gap:.5rem}
+.prop-row:hover{background:rgba(30,58,92,.4)}
+.prop-key{font-size:11px;color:var(--muted);width:90px;flex-shrink:0}
+.prop-val{font-size:11px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prop-val.hi{color:var(--accent);font-weight:600}
+/* Axis labels */
+.ax-x{color:#ff4444}.ax-y{color:#44ff44}.ax-z{color:#4488ff}
+/* Viewer status bar */
+.vp-status{background:#06101a;border-top:1px solid var(--border);padding:.2rem .6rem;font-size:10px;color:var(--muted);display:flex;gap:1rem;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg px-3 py-2">
+  <span class="navbar-brand"><i class="bi bi-building me-2"></i>EPC Structural Design</span>
+  <div class="ms-auto d-flex align-items-center gap-2">
+    <select id="projectSelect" class="form-select form-select-sm" style="width:200px" onchange="selectProject(this.value)">
+      <option value="">— Select Project —</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="showModal('modalProject')"><i class="bi bi-plus-lg me-1"></i>New Project</button>
+  </div>
+</nav>
+
+<!-- MAIN TABS -->
+<div class="container-fluid p-0">
+<ul class="nav nav-tabs px-3 pt-2" id="mainTabs">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabProject"><i class="bi bi-gear me-1"></i>Project</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabEquipment"><i class="bi bi-cpu me-1"></i>Equipment</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabLoads"><i class="bi bi-lightning me-1"></i>Loads</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabStructure"><i class="bi bi-grid-3x3 me-1"></i>Structure</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabCalc"><i class="bi bi-calculator me-1"></i>Calculate</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabResults"><i class="bi bi-bar-chart me-1"></i>Results</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabImport"><i class="bi bi-upload me-1"></i>Import/Export</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab3D" id="tab3DLink" onclick="on3DTabShow()"><i class="bi bi-box me-1"></i>3D View</a></li>
+</ul>
+
+<div class="tab-content p-3">
+
+<!-- ═══ TAB: PROJECT ═══════════════════════════════════════════ -->
+<div class="tab-pane fade show active" id="tabProject">
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-folder2 me-1"></i>Project Settings</div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-8"><label class="form-label">Project Name</label><input type="text" id="pName" class="form-control"></div>
+          <div class="col-4"><label class="form-label">Code Standard</label>
+            <select id="pCode" class="form-select">
+              <option value="AISC-360">AISC 360-22</option>
+              <option value="IS-800">IS 800</option>
+            </select>
+          </div>
+          <div class="col-12"><label class="form-label">Description</label><input type="text" id="pDesc" class="form-control"></div>
+        </div>
+        <hr>
+        <div class="row g-2">
+          <div class="col-12 text-muted" style="font-size:11px;letter-spacing:.05em">WIND PARAMETERS (ASCE 7-22)</div>
+          <div class="col-4"><label class="form-label">Basic Wind Speed (m/s)</label><input type="number" id="pWindSpeed" class="form-control" value="45"></div>
+          <div class="col-4"><label class="form-label">Exposure Category</label>
+            <select id="pWindExp" class="form-select"><option>B</option><option selected>C</option><option>D</option></select>
+          </div>
+          <div class="col-4"><label class="form-label">Wind Zone</label>
+            <select id="pWindZone" class="form-select"><option>A</option><option selected>B</option><option>C</option></select>
+          </div>
+        </div>
+        <hr>
+        <div class="row g-2">
+          <div class="col-12 text-muted" style="font-size:11px;letter-spacing:.05em">SEISMIC PARAMETERS (ASCE 7-22 ELF)</div>
+          <div class="col-3"><label class="form-label">SDS</label><input type="number" id="pSDS" class="form-control" value="0.2" step="0.01"></div>
+          <div class="col-3"><label class="form-label">SD1</label><input type="number" id="pSD1" class="form-control" value="0.1" step="0.01"></div>
+          <div class="col-2"><label class="form-label">R</label><input type="number" id="pR" class="form-control" value="3.0" step="0.5"></div>
+          <div class="col-2"><label class="form-label">Ie</label><input type="number" id="pIe" class="form-control" value="1.0" step="0.1"></div>
+          <div class="col-2"><label class="form-label">Site Class</label>
+            <select id="pSiteClass" class="form-select"><option>A</option><option>B</option><option>C</option><option selected>D</option><option>E</option></select>
+          </div>
+        </div>
+        <hr>
+        <div class="row g-2">
+          <div class="col-12 text-muted" style="font-size:11px;letter-spacing:.05em">SOIL / FOUNDATION</div>
+          <div class="col-6"><label class="form-label">Allowable Bearing Pressure (kPa)</label><input type="number" id="pSoilBearing" class="form-control" value="150"></div>
+          <div class="col-6"><label class="form-label">Depth to Bearing Stratum (mm)</label><input type="number" id="pSoilDepth" class="form-control" value="1500"></div>
+        </div>
+        <div class="mt-3">
+          <button class="btn btn-primary" onclick="saveProject()"><i class="bi bi-save me-1"></i>Save Project Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-list-ul me-1"></i>Projects</div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblProjects">
+          <thead><tr><th>#</th><th>Name</th><th>Standard</th><th>Created</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /tabProject -->
+
+<!-- ═══ TAB: EQUIPMENT ═══════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabEquipment">
+<div class="d-flex justify-content-between mb-2">
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary btn-sm" onclick="showModal('modalEquipment')"><i class="bi bi-plus-lg me-1"></i>Add Equipment</button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="downloadTemplate('equipment-csv')"><i class="bi bi-download me-1"></i>CSV Template</button>
+  </div>
+  <span class="text-muted" style="font-size:11px" id="eqCount">0 items</span>
+</div>
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0" id="tblEquipment">
+      <thead>
+        <tr>
+          <th>Tag</th><th>Type</th><th>Description</th>
+          <th>Wt.Op (kg)</th><th>Wt.Ew (kg)</th>
+          <th>L×D×H (mm)</th><th>Orient.</th>
+          <th>Pos X/Y/Z</th><th>Tier</th><th>Bay</th><th>Support</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+<!-- Nozzle sub-panel -->
+<div id="nozzlePanel" class="mt-3 d-none">
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-arrows-angle-expand me-1"></i>Nozzles — <span id="nozzleEqTag"></span></span>
+      <button class="btn btn-primary btn-sm" onclick="showModal('modalNozzle')"><i class="bi bi-plus-lg me-1"></i>Add Nozzle</button>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0" id="tblNozzles">
+        <thead><tr><th>Tag</th><th>Service</th><th>DN</th><th>Rating</th><th>Pos X/Y/Z</th><th>Dir</th><th>Fx(N)</th><th>Fy(N)</th><th>Fz(N)</th><th>Mx</th><th>My</th><th>Mz</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Baseplate sub-panel -->
+  <div class="card mt-2">
+    <div class="card-header"><i class="bi bi-square me-1"></i>Baseplate</div>
+    <div class="card-body">
+      <div class="row g-2" id="baseplateForm">
+        <div class="col-2"><label class="form-label">Length (mm)</label><input type="number" id="bpLength" class="form-control" value="300"></div>
+        <div class="col-2"><label class="form-label">Width (mm)</label><input type="number" id="bpWidth" class="form-control" value="300"></div>
+        <div class="col-2"><label class="form-label">Thickness (mm)</label><input type="number" id="bpThick" class="form-control" value="20"></div>
+        <div class="col-2"><label class="form-label">Bolt Dia (mm)</label><input type="number" id="bpBoltDia" class="form-control" value="20"></div>
+        <div class="col-2"><label class="form-label">Bolt Qty</label><input type="number" id="bpBoltQty" class="form-control" value="4"></div>
+        <div class="col-2"><label class="form-label">Bolt PCD (mm)</label><input type="number" id="bpBoltPCD" class="form-control" value="250"></div>
+        <div class="col-12"><button class="btn btn-primary btn-sm" onclick="saveBaseplate()"><i class="bi bi-save me-1"></i>Save Baseplate</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /tabEquipment -->
+
+<!-- ═══ TAB: LOADS ═══════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabLoads">
+<ul class="nav nav-tabs mb-3" id="loadSubTabs">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabLoadCases">Load Cases</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabNodalLoads">Nodal Loads</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabDistLoads">Distributed Loads</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabCombos">Load Combinations</a></li>
+</ul>
+<div class="tab-content">
+  <!-- Load Cases -->
+  <div class="tab-pane fade show active" id="tabLoadCases">
+    <div class="card">
+      <div class="card-header">Standard Load Cases</div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblLoadCases">
+          <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Description</th><th>Active</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Nodal Loads -->
+  <div class="tab-pane fade" id="tabNodalLoads">
+    <div class="d-flex justify-content-between mb-2">
+      <button class="btn btn-primary btn-sm" onclick="showModal('modalNodalLoad')"><i class="bi bi-plus-lg me-1"></i>Add Nodal Load</button>
+    </div>
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblNodalLoads">
+          <thead><tr><th>Node</th><th>Load Case</th><th>Fx (N)</th><th>Fy (N)</th><th>Fz (N)</th><th>Mx (N.mm)</th><th>My</th><th>Mz</th><th>Source</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Distributed Loads -->
+  <div class="tab-pane fade" id="tabDistLoads">
+    <div class="d-flex justify-content-between mb-2">
+      <button class="btn btn-primary btn-sm" onclick="showModal('modalDistLoad')"><i class="bi bi-plus-lg me-1"></i>Add Distributed Load</button>
+    </div>
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblDistLoads">
+          <thead><tr><th>Member</th><th>Load Case</th><th>Type</th><th>w1 (N/mm)</th><th>w2 (N/mm)</th><th>a (mm)</th><th>b (mm)</th><th>Direction</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Combinations -->
+  <div class="tab-pane fade" id="tabCombos">
+    <div class="d-flex gap-2 mb-2">
+      <button class="btn btn-primary btn-sm" onclick="generateCombos('LRFD')"><i class="bi bi-magic me-1"></i>Generate LRFD (ASCE 7)</button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="generateCombos('ASD')"><i class="bi bi-magic me-1"></i>Generate ASD (ASCE 7)</button>
+    </div>
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblCombos">
+          <thead><tr><th>Name</th><th>Type</th><th>DL</th><th>LL</th><th>WL</th><th>EQ</th><th>TL</th><th>Governing</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /tabLoads -->
+
+<!-- ═══ TAB: STRUCTURE ══════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabStructure">
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabRackGeo">Rack Geometry</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabMembers">Members</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabSections">Sections Library</a></li>
+</ul>
+<div class="tab-content">
+  <!-- Rack Geometry -->
+  <div class="tab-pane fade show active" id="tabRackGeo">
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-header">Rack Configuration</div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-6"><label class="form-label">Rack Tag</label><input type="text" id="rTag" class="form-control" value="RACK-A"></div>
+              <div class="col-6"><label class="form-label">Bracing Type</label>
+                <select id="rBrace" class="form-select"><option>X-BRACE</option><option>K-BRACE</option><option>PORTAL</option></select>
+              </div>
+              <div class="col-4"><label class="form-label">No. of Bays</label><input type="number" id="rBays" class="form-control" value="3" min="1" max="20"></div>
+              <div class="col-4"><label class="form-label">Bay Span (mm)</label><input type="number" id="rBaySpan" class="form-control" value="9000"></div>
+              <div class="col-4"><label class="form-label">Rack Width (mm)</label><input type="number" id="rWidth" class="form-control" value="6000"></div>
+              <div class="col-4"><label class="form-label">No. of Tiers</label><input type="number" id="rTiers" class="form-control" value="2" min="1" max="8" onchange="updateTierHeightInputs()"></div>
+              <div class="col-8"><label class="form-label">Tier Heights (mm, comma-separated)</label><input type="text" id="rTierHeights" class="form-control" value="4000,7500" placeholder="4000,7500"></div>
+              <div class="col-4"><label class="form-label">Origin X (mm)</label><input type="number" id="rOriginX" class="form-control" value="0"></div>
+              <div class="col-4"><label class="form-label">Origin Y (mm)</label><input type="number" id="rOriginY" class="form-control" value="0"></div>
+              <div class="col-4"><label class="form-label">Orientation (°)</label><input type="number" id="rOrientation" class="form-control" value="0"></div>
+              <div class="col-12 mt-2">
+                <button class="btn btn-primary btn-sm me-2" onclick="saveRack()"><i class="bi bi-save me-1"></i>Save Rack</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="generateGrid()"><i class="bi bi-grid me-1"></i>Generate Grid</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header">Rack Elevation View</div>
+          <div class="card-body p-1">
+            <svg id="rack-svg" height="280" viewBox="0 0 700 280"></svg>
+          </div>
+        </div>
+        <div class="card mt-2">
+          <div class="card-header">Geometry Summary</div>
+          <div class="card-body py-2" id="rackSummary" style="font-size:12px;color:var(--muted)">No rack defined. Save rack and generate grid to view.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Members -->
+  <div class="tab-pane fade" id="tabMembers">
+    <div class="d-flex justify-content-between mb-2">
+      <div class="d-flex gap-2 align-items-center">
+        <span class="text-muted" style="font-size:11px">Filter:</span>
+        <select id="memberTypeFilter" class="form-select form-select-sm" style="width:130px" onchange="filterMembers()">
+          <option value="">All Types</option><option>BEAM</option><option>COLUMN</option><option>BRACE</option><option>STRINGER</option>
+        </select>
+        <select id="memberSecFilter" class="form-select form-select-sm" style="width:150px">
+          <option value="">Any Section</option>
+        </select>
+      </div>
+      <span id="memberCount" class="text-muted" style="font-size:11px"></span>
+    </div>
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblMembers">
+          <thead><tr><th>Tag</th><th>Type</th><th>Start</th><th>End</th><th>Length (mm)</th><th>Section</th><th>Material</th><th>KL (mm)</th><th>k</th><th>Action</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Sections Library -->
+  <div class="tab-pane fade" id="tabSections">
+    <div class="d-flex gap-2 mb-2">
+      <select id="secTypeFilter" class="form-select form-select-sm" style="width:120px" onchange="loadSections()">
+        <option value="">All Types</option><option value="W">W (Wide Flange)</option><option value="HSS-SQ">HSS Square</option><option value="C">Channel (C)</option>
+      </select>
+      <input type="text" id="secSearch" class="form-control form-control-sm" style="width:200px" placeholder="Search designation..." oninput="loadSections()">
+    </div>
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblSections">
+          <thead><tr><th>Designation</th><th>Type</th><th>d (mm)</th><th>bf (mm)</th><th>A (mm²)</th><th>Ix (mm⁴)</th><th>Sx (mm³)</th><th>Zx (mm³)</th><th>rx (mm)</th><th>ry (mm)</th><th>W (kg/m)</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /tabStructure -->
+
+<!-- ═══ TAB: CALCULATE ══════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabCalc">
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-play-circle me-1"></i>Analysis Steps</div>
+      <div class="card-body">
+        <div class="run-step step-pending" id="step-reactions">
+          <i class="bi bi-arrow-down-up icon"></i>
+          <span class="label"><strong>Support Reactions</strong><br><small class="text-muted">Tributary area method, all load cases</small></span>
+          <button class="btn btn-outline-secondary btn-sm" onclick="runStep('reactions')">Run</button>
+        </div>
+        <div class="run-step step-pending" id="step-section-checks">
+          <i class="bi bi-check2-square icon"></i>
+          <span class="label"><strong>Section Adequacy Checks</strong><br><small class="text-muted">AISC 360-22: bending, shear, axial, combined</small></span>
+          <button class="btn btn-outline-secondary btn-sm" onclick="runStep('section-checks')">Run</button>
+        </div>
+        <div class="run-step step-pending" id="step-foundations">
+          <i class="bi bi-layers icon"></i>
+          <span class="label"><strong>Foundation Design</strong><br><small class="text-muted">ACI 318-19: spread footings, punching, flexure</small></span>
+          <button class="btn btn-outline-secondary btn-sm" onclick="runStep('foundations')">Run</button>
+        </div>
+        <div class="mt-3">
+          <button class="btn btn-primary w-100" onclick="runAll()"><i class="bi bi-play-fill me-2"></i>Run Complete Analysis</button>
+        </div>
+        <div class="mt-2">
+          <div class="progress mb-1" style="height:4px"><div id="calcProgress" class="progress-bar bg-warning" style="width:0%"></div></div>
+        </div>
+        <div class="log-box mt-2" id="calcLog">> Ready. Select a project and run analysis.<br></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-bar-chart me-1"></i>Quick Summary</div>
+      <div class="card-body" id="calcSummary">
+        <div class="row g-2" id="summaryCards">
+          <div class="col-3"><div class="stat-card"><div class="num" id="sEquip">—</div><div class="lbl">Equipment</div></div></div>
+          <div class="col-3"><div class="stat-card"><div class="num" id="sMembers">—</div><div class="lbl">Members</div></div></div>
+          <div class="col-3"><div class="stat-card"><div class="num" id="sFootings">—</div><div class="lbl">Footings</div></div></div>
+          <div class="col-3"><div class="stat-card"><div class="num" id="sMaxUC" style="font-size:1.4rem">—</div><div class="lbl">Max UC</div></div></div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-4">
+            <div class="stat-card">
+              <div class="d-flex justify-content-between px-1">
+                <span style="color:#5bdb7f;font-size:.8rem" id="sMemberPass">— Pass</span>
+                <span style="color:#ffc107;font-size:.8rem" id="sMemberMarg">— Marg.</span>
+                <span style="color:#ff6b6b;font-size:.8rem" id="sMemberFail">— Fail</span>
+              </div>
+              <div class="lbl mt-1">Member Status</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="stat-card">
+              <div class="num" id="sMaxBearing" style="font-size:1.2rem">—</div>
+              <div class="lbl">Max Bearing (kPa)</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="stat-card">
+              <div class="num" id="sOverall" style="font-size:1.2rem">—</div>
+              <div class="lbl">Overall Status</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Section capacity calculator -->
+    <div class="card mt-3">
+      <div class="card-header"><i class="bi bi-calculator me-1"></i>Section Capacity Calculator</div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-4">
+            <label class="form-label">Section</label>
+            <input type="text" id="capSec" class="form-control" placeholder="e.g. W310X97">
+          </div>
+          <div class="col-2"><label class="form-label">Fy (MPa)</label><input type="number" id="capFy" class="form-control" value="345"></div>
+          <div class="col-2"><label class="form-label">Lb (mm)</label><input type="number" id="capLb" class="form-control" value="0"></div>
+          <div class="col-2"><label class="form-label">KL (mm)</label><input type="number" id="capKL" class="form-control" value="4000"></div>
+          <div class="col-2 d-flex align-items-end"><button class="btn btn-primary btn-sm w-100" onclick="calcSectionCapacity()">Check</button></div>
+        </div>
+        <div id="capResult" class="mt-2 p-2 rounded" style="background:#050d16;font-family:monospace;font-size:12px;display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /tabCalc -->
+
+<!-- ═══ TAB: RESULTS ════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabResults">
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabResMembers">Member Checks</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabResReactions">Reactions</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabResFoundations">Foundations</a></li>
+</ul>
+<div class="tab-content">
+  <div class="tab-pane fade show active" id="tabResMembers">
+    <div class="d-flex gap-2 mb-2">
+      <select id="resMemberFilter" class="form-select form-select-sm" style="width:130px" onchange="loadMemberResults()">
+        <option value="">All Status</option><option>PASS</option><option>MARGINAL</option><option>FAIL</option>
+      </select>
+      <button class="btn btn-outline-secondary btn-sm" onclick="exportResultsCSV()"><i class="bi bi-download me-1"></i>Export CSV</button>
+    </div>
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblResMembers">
+          <thead><tr><th>Member</th><th>Section</th><th>Type</th><th>Combo</th><th>Axial (kN)</th><th>Shear (kN)</th><th>Moment (kN.m)</th><th>Deflection (mm)</th><th>UC Bend</th><th>UC Shear</th><th>UC Comb</th><th>φMn (kN.m)</th><th>φVn (kN)</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabResReactions">
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblResReactions">
+          <thead><tr><th>Node</th><th>Load Case / Combo</th><th>Rx (kN)</th><th>Ry (kN)</th><th>Rz (kN)</th><th>RMx (kN.m)</th><th>RMy</th><th>RMz</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabResFoundations">
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblResFoundations">
+          <thead><tr><th>Footing</th><th>Node</th><th>B×L×T (mm)</th><th>Depth (mm)</th><th>Bearing (kPa)</th><th>Allow (kPa)</th><th>UC Punch</th><th>UC Shear-X</th><th>UC Shear-Y</th><th>UC Flex-X</th><th>UC Flex-Y</th><th>Bot Rebar X</th><th>Bot Rebar Y</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /tabResults -->
+
+<!-- ═══ TAB: IMPORT/EXPORT ═══════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabImport">
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-upload me-1"></i>Import from CSV</div>
+      <div class="card-body">
+        <div class="mb-2">
+          <label class="form-label">Import Type</label>
+          <select id="importType" class="form-select" onchange="updateImportHint()">
+            <option value="equipment-csv">Equipment (tanks, vessels, reactors, pumps, blowers)</option>
+            <option value="nozzles-csv">Nozzle Loads (Fx, Fy, Fz, Mx, My, Mz)</option>
+          </select>
+        </div>
+        <div id="importHint" class="mb-2 p-2 rounded" style="background:#050d16;font-size:11px;color:var(--muted)">
+          Import equipment list. Use the sample file as reference for all column names and units.
+        </div>
+        <div class="mb-2">
+          <label class="form-label">CSV File</label>
+          <input type="file" id="importFile" class="form-control" accept=".csv">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="doImport()">
+          <i class="bi bi-cloud-upload me-1"></i>Upload &amp; Import
+        </button>
+        <div id="importLog" class="mt-2 log-box" style="height:150px;display:none"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-download me-1"></i>Sample &amp; Blank Templates</div>
+      <div class="card-body">
+        <p class="text-muted mb-2" style="font-size:11px">
+          <strong style="color:var(--accent)">Sample files</strong> contain real plant data (tanks, vessels, reactors, pumps, blowers, nozzle loads).<br>
+          Use them as reference or clear rows and add your own.
+        </p>
+        <div class="d-flex flex-column gap-2">
+          <div style="border-bottom:1px solid var(--border);padding-bottom:.5rem;margin-bottom:.25rem">
+            <div class="text-muted mb-1" style="font-size:10px;letter-spacing:.05em;text-transform:uppercase">Sample Files (pre-filled)</div>
+            <button class="btn btn-outline-secondary btn-sm text-start w-100 mb-1" onclick="downloadTemplate('equipment-sample')">
+              <i class="bi bi-file-earmark-check me-2" style="color:#5bdb7f"></i>equipment_sample.csv — 24 items
+              <span class="float-end text-muted" style="font-size:10px">Tank/Vessel/Reactor/Pump/Blower/HX</span>
+            </button>
+            <button class="btn btn-outline-secondary btn-sm text-start w-100" onclick="downloadTemplate('nozzles-csv')">
+              <i class="bi bi-file-earmark-check me-2" style="color:#5bdb7f"></i>nozzles_sample.csv — 50 nozzles
+              <span class="float-end text-muted" style="font-size:10px">Fx/Fy/Fz + Mx/My/Mz for all equip</span>
+            </button>
+          </div>
+          <div>
+            <div class="text-muted mb-1" style="font-size:10px;letter-spacing:.05em;text-transform:uppercase">Blank Templates</div>
+            <button class="btn btn-outline-secondary btn-sm text-start w-100 mb-1" onclick="downloadTemplate('equipment-csv')">
+              <i class="bi bi-file-earmark-spreadsheet me-2"></i>equipment_template.csv — blank
+            </button>
+            <button class="btn btn-outline-secondary btn-sm text-start w-100" onclick="downloadTemplate('loads-csv')">
+              <i class="bi bi-file-earmark-spreadsheet me-2"></i>loads_template.csv — blank
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-file-earmark-arrow-down me-1"></i>Export Results</div>
+      <div class="card-body">
+        <div class="d-flex flex-column gap-2">
+          <button class="btn btn-primary btn-sm" onclick="exportResultsCSV()"><i class="bi bi-table me-2"></i>Member Results CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /tabImport -->
+
+<!-- ═══ TAB: 3D VIEW ════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab3D">
+<div class="viewer-wrap">
+
+  <!-- ── MODEL TREE (left) ───────────────────────────────────── -->
+  <div class="model-tree">
+    <div class="panel-head">
+      <span><i class="bi bi-diagram-3 me-1"></i>Model Tree</span>
+      <button class="btn btn-sm p-0" style="color:var(--muted)" onclick="refreshViewer()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+    <div class="panel-body" id="modelTree">
+      <div style="color:var(--muted);font-size:11px;padding:.5rem">Select a project and open this tab to load the model.</div>
+    </div>
+  </div>
+
+  <!-- ── VIEWPORT (center) ──────────────────────────────────── -->
+  <div class="vp-wrap">
+    <div class="vp-toolbar">
+      <button class="btn btn-sm" onclick="v3d.fitView()" title="Fit All"><i class="bi bi-fullscreen"></i></button>
+      <button class="btn btn-sm" onclick="v3d.resetView()" title="Home"><i class="bi bi-house"></i></button>
+      <div class="sep"></div>
+      <button class="btn btn-sm" onclick="v3d.setView('top')"    title="Top View">Top</button>
+      <button class="btn btn-sm" onclick="v3d.setView('front')"  title="Front View">Front</button>
+      <button class="btn btn-sm" onclick="v3d.setView('side')"   title="Side View">Side</button>
+      <button class="btn btn-sm" onclick="v3d.setView('iso')"    title="Isometric">Iso</button>
+      <div class="sep"></div>
+      <button class="btn btn-sm" id="btnWire"    onclick="v3d.toggleWire()"    title="Wireframe"><i class="bi bi-box"></i> Wire</button>
+      <button class="btn btn-sm" id="btnLabels"  onclick="v3d.toggleLabels()"  title="Labels"><i class="bi bi-tag"></i> Labels</button>
+      <button class="btn btn-sm" id="btnNozzles" onclick="v3d.toggleNozzles()" title="Nozzle Forces"><i class="bi bi-arrows-expand-vertical"></i> Nozzles</button>
+      <div class="sep"></div>
+      <span style="font-size:10px;color:var(--muted)">
+        <span class="ax-x">■ X</span>&nbsp;
+        <span class="ax-y">■ Y (up)</span>&nbsp;
+        <span class="ax-z">■ Z</span>
+      </span>
+      <div class="ms-auto d-flex gap-2 align-items-center">
+        <span style="font-size:10px;color:var(--muted)">Scroll=zoom &nbsp; L-drag=orbit &nbsp; R-drag=pan</span>
+      </div>
+    </div>
+    <div id="viewport3d"></div>
+    <div class="vp-status">
+      <span id="vpStatus">No model loaded</span>
+      <span id="vpSelected"></span>
+      <span id="vpCursor"></span>
+    </div>
+  </div>
+
+  <!-- ── PROPERTY INSPECTOR (right) ────────────────────────── -->
+  <div class="prop-panel">
+    <div class="panel-head">
+      <span><i class="bi bi-list-ul me-1"></i>Properties</span>
+      <span id="propSelTag" style="color:var(--accent);font-size:11px"></span>
+    </div>
+    <div class="panel-body" id="propPanel">
+      <div style="color:var(--muted);font-size:11px;padding:.5rem">Click an object in the tree or viewport to inspect.</div>
+    </div>
+  </div>
+
+</div>
+</div><!-- /tab3D -->
+
+</div><!-- tab-content -->
+</div><!-- container-fluid -->
+
+<!-- ═══ MODALS ═══════════════════════════════════════════════════ -->
+
+<!-- New Project Modal -->
+<div class="modal fade" id="modalProject" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-folder-plus me-2"></i>New Project</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-8"><label class="form-label">Project Name *</label><input type="text" id="mpName" class="form-control" placeholder="e.g. Plant-A Pipe Rack"></div>
+          <div class="col-4"><label class="form-label">Code Standard</label><select id="mpCode" class="form-select"><option>AISC-360</option><option>IS-800</option></select></div>
+          <div class="col-12"><label class="form-label">Description</label><input type="text" id="mpDesc" class="form-control"></div>
+          <div class="col-3"><label class="form-label">Wind Speed (m/s)</label><input type="number" id="mpWind" class="form-control" value="45"></div>
+          <div class="col-3"><label class="form-label">Exposure</label><select id="mpExp" class="form-select"><option>B</option><option selected>C</option><option>D</option></select></div>
+          <div class="col-3"><label class="form-label">SDS</label><input type="number" id="mpSDS" class="form-control" value="0.2" step="0.01"></div>
+          <div class="col-3"><label class="form-label">SD1</label><input type="number" id="mpSD1" class="form-control" value="0.1" step="0.01"></div>
+          <div class="col-3"><label class="form-label">R</label><input type="number" id="mpR" class="form-control" value="3.0"></div>
+          <div class="col-3"><label class="form-label">Ie</label><input type="number" id="mpIe" class="form-control" value="1.0"></div>
+          <div class="col-3"><label class="form-label">Soil Bearing (kPa)</label><input type="number" id="mpSoilBearing" class="form-control" value="150"></div>
+          <div class="col-3"><label class="form-label">Soil Depth (mm)</label><input type="number" id="mpSoilDepth" class="form-control" value="1500"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="createProject()"><i class="bi bi-check-lg me-1"></i>Create Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Equipment Modal -->
+<div class="modal fade" id="modalEquipment" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-cpu me-2"></i>Equipment</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-2"><label class="form-label">Tag *</label><input type="text" id="eqTag" class="form-control" placeholder="V-101"></div>
+          <div class="col-3"><label class="form-label">Type</label>
+            <select id="eqType" class="form-select"><option>VESSEL</option><option>EXCHANGER</option><option>PUMP</option><option>TANK</option><option>COMPRESSOR</option><option>REACTOR</option><option>COLUMN</option><option>DRUM</option></select>
+          </div>
+          <div class="col-7"><label class="form-label">Description</label><input type="text" id="eqDesc" class="form-control"></div>
+          <div class="col-3"><label class="form-label">Weight Empty (kg)</label><input type="number" id="eqWeEmpty" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Weight Operating (kg)</label><input type="number" id="eqWeOp" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Weight Test/Hydrotest (kg)</label><input type="number" id="eqWeTest" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Orientation</label>
+            <select id="eqOrient" class="form-select"><option value="H">Horizontal</option><option value="V">Vertical</option></select>
+          </div>
+          <div class="col-3"><label class="form-label">Length (mm)</label><input type="number" id="eqLength" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Diameter (mm)</label><input type="number" id="eqDia" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Height (mm)</label><input type="number" id="eqHeight" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">CoG X (mm)</label><input type="number" id="eqCogX" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">CoG Y (mm)</label><input type="number" id="eqCogY" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">CoG Z (mm)</label><input type="number" id="eqCogZ" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Position X (mm)</label><input type="number" id="eqPosX" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Position Y (mm)</label><input type="number" id="eqPosY" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Position Z (mm)</label><input type="number" id="eqPosZ" class="form-control" value="0"></div>
+          <div class="col-3"><label class="form-label">Elevation (mm)</label><input type="number" id="eqElevation" class="form-control" value="0"></div>
+          <div class="col-2"><label class="form-label">Tier Level</label><input type="number" id="eqTier" class="form-control" value="1" min="1"></div>
+          <div class="col-2"><label class="form-label">Bay Number</label><input type="number" id="eqBay" class="form-control" value="1" min="1"></div>
+          <div class="col-3"><label class="form-label">Support Type</label>
+            <select id="eqSupport" class="form-select"><option>SKID</option><option>SADDLE</option><option>LEG</option><option>LUGA</option><option>CLIP</option><option>TRUNNION</option></select>
+          </div>
+          <div class="col-5"><label class="form-label">Notes</label><input type="text" id="eqNotes" class="form-control"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveEquipment()"><i class="bi bi-check-lg me-1"></i>Save Equipment</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Nozzle Modal -->
+<div class="modal fade" id="modalNozzle" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-arrows-angle-expand me-2"></i>Nozzle Data</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-2"><label class="form-label">Nozzle Tag</label><input type="text" id="nzTag" class="form-control" placeholder="N1"></div>
+          <div class="col-3"><label class="form-label">Service</label><input type="text" id="nzService" class="form-control" placeholder="INLET"></div>
+          <div class="col-2"><label class="form-label">Size DN (mm)</label><input type="number" id="nzDN" class="form-control" value="50"></div>
+          <div class="col-2"><label class="form-label">Rating</label>
+            <select id="nzRating" class="form-select"><option>150#</option><option>300#</option><option>600#</option><option>900#</option><option>1500#</option></select>
+          </div>
+          <div class="col-3"><label class="form-label">Direction</label>
+            <select id="nzDir" class="form-select"><option>+X</option><option>-X</option><option>+Y</option><option>-Y</option><option>+Z</option><option>-Z</option></select>
+          </div>
+          <div class="col-12 text-muted" style="font-size:11px">POSITION (from equipment origin)</div>
+          <div class="col-4"><label class="form-label">Pos X (mm)</label><input type="number" id="nzPosX" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">Pos Y (mm)</label><input type="number" id="nzPosY" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">Pos Z (mm)</label><input type="number" id="nzPosZ" class="form-control" value="0"></div>
+          <div class="col-12 text-muted" style="font-size:11px">NOZZLE LOADS (from piping stress analysis)</div>
+          <div class="col-2"><label class="form-label">Fx (N)</label><input type="number" id="nzFx" class="form-control" value="0"></div>
+          <div class="col-2"><label class="form-label">Fy (N)</label><input type="number" id="nzFy" class="form-control" value="0"></div>
+          <div class="col-2"><label class="form-label">Fz (N)</label><input type="number" id="nzFz" class="form-control" value="0"></div>
+          <div class="col-2"><label class="form-label">Mx (N.mm)</label><input type="number" id="nzMx" class="form-control" value="0"></div>
+          <div class="col-2"><label class="form-label">My (N.mm)</label><input type="number" id="nzMy" class="form-control" value="0"></div>
+          <div class="col-2"><label class="form-label">Mz (N.mm)</label><input type="number" id="nzMz" class="form-control" value="0"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveNozzle()"><i class="bi bi-check-lg me-1"></i>Save Nozzle</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Nodal Load Modal -->
+<div class="modal fade" id="modalNodalLoad" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Nodal Load</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label">Node Tag</label><input type="text" id="nlNode" class="form-control" placeholder="A1T1"></div>
+          <div class="col-6"><label class="form-label">Load Case</label><select id="nlCase" class="form-select"></select></div>
+          <div class="col-4"><label class="form-label">Fx (N)</label><input type="number" id="nlFx" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">Fy (N)</label><input type="number" id="nlFy" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">Fz (N)</label><input type="number" id="nlFz" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">Mx (N.mm)</label><input type="number" id="nlMx" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">My (N.mm)</label><input type="number" id="nlMy" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">Mz (N.mm)</label><input type="number" id="nlMz" class="form-control" value="0"></div>
+          <div class="col-12"><label class="form-label">Source</label><input type="text" id="nlSource" class="form-control" value="MANUAL"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveNodalLoad()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Distributed Load Modal -->
+<div class="modal fade" id="modalDistLoad" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Distributed Load</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label">Member Tag</label><input type="text" id="dlMember" class="form-control" placeholder="BM-001"></div>
+          <div class="col-6"><label class="form-label">Load Case</label><select id="dlCase" class="form-select"></select></div>
+          <div class="col-4"><label class="form-label">Type</label><select id="dlType" class="form-select"><option>UDL</option><option>TRAPEZOIDAL</option><option>POINT</option></select></div>
+          <div class="col-4"><label class="form-label">w1 (N/mm)</label><input type="number" id="dlW1" class="form-control" value="0" step="0.1"></div>
+          <div class="col-4"><label class="form-label">w2 (N/mm)</label><input type="number" id="dlW2" class="form-control" value="0" step="0.1"></div>
+          <div class="col-4"><label class="form-label">Start (mm)</label><input type="number" id="dlA" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">End (mm)</label><input type="number" id="dlB" class="form-control" value="0"></div>
+          <div class="col-4"><label class="form-label">Direction</label><select id="dlDir" class="form-select"><option>GLOBAL-Y</option><option>GLOBAL-X</option><option>GLOBAL-Z</option><option>LOCAL-Y</option></select></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveDistLoad()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ─── STATE ───────────────────────────────────────────────────────
+let currentProject = null;
+let currentEqId = null;
+let rackId = null;
+const API = '/api';
+
+// ─── UTILITIES ───────────────────────────────────────────────────
+function fmt(v, d=1){ if(v===null||v===undefined) return '—'; return (+v).toFixed(d); }
+function fmtK(v,d=1){ return fmt(v/1000,d); }  // N → kN
+function fmtM(v,d=2){ return fmt(v/1e6,d); }   // N.mm → kN.m
+
+function ucBadge(uc){
+  const v = +uc || 0;
+  const pct = Math.min(v*100, 100).toFixed(0);
+  const col = v<=0.9? '#5bdb7f': v<=1.0? '#ffc107': '#ff6b6b';
+  return `<div style="font-size:11px;text-align:center">${v.toFixed(3)}</div>
+          <div class="uc-bar"><div class="uc-fill" style="width:${pct}%;background:${col}"></div></div>`;
+}
+
+function statusBadge(s){
+  if(s==='PASS')     return '<span class="badge-pass">PASS</span>';
+  if(s==='FAIL')     return '<span class="badge-fail">FAIL</span>';
+  if(s==='MARGINAL') return '<span class="badge-marg">MARG</span>';
+  return '<span class="badge-unch">—</span>';
+}
+
+async function api(method, path, body=null){
+  const opts = {method, headers:{'Content-Type':'application/json'}};
+  if(body) opts.body = JSON.stringify(body);
+  const r = await fetch(API+path, opts);
+  return r.json();
+}
+
+function showModal(id){ new bootstrap.Modal(document.getElementById(id)).show(); }
+function hideModal(id){ bootstrap.Modal.getInstance(document.getElementById(id))?.hide(); }
+
+function log(msg, cls=''){
+  const box = document.getElementById('calcLog');
+  const line = document.createElement('div');
+  line.style.color = cls==='ok'? '#5bdb7f': cls==='err'? '#ff6b6b': '#d0e4f7';
+  line.textContent = `> ${msg}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ─── PROJECTS ────────────────────────────────────────────────────
+async function loadProjects(){
+  const data = await api('GET', '/projects');
+  const sel  = document.getElementById('projectSelect');
+  const tbody= document.querySelector('#tblProjects tbody');
+  sel.innerHTML = '<option value="">— Select Project —</option>';
+  tbody.innerHTML = '';
+  data.forEach(p => {
+    sel.innerHTML += `<option value="${p.id}" ${p.id==currentProject? 'selected':''}>${p.name}</option>`;
+    tbody.innerHTML += `<tr>
+      <td>${p.id}</td><td><a href="#" onclick="selectProject(${p.id})" style="color:var(--accent)">${p.name}</a></td>
+      <td>${p.code_standard}</td>
+      <td style="color:var(--muted)">${(p.created_at||'').slice(0,10)}</td>
+      <td><button class="btn btn-outline-secondary btn-sm" onclick="deleteProject(${p.id})"><i class="bi bi-trash"></i></button></td>
+    </tr>`;
+  });
+}
+
+async function createProject(){
+  const d = {
+    name: document.getElementById('mpName').value,
+    description: document.getElementById('mpDesc').value,
+    code_standard: document.getElementById('mpCode').value,
+    wind_speed: +document.getElementById('mpWind').value,
+    wind_exposure: document.getElementById('mpExp').value,
+    seismic_sds: +document.getElementById('mpSDS').value,
+    seismic_sd1: +document.getElementById('mpSD1').value,
+    seismic_r: +document.getElementById('mpR').value,
+    seismic_ie: +document.getElementById('mpIe').value,
+    soil_bearing: +document.getElementById('mpSoilBearing').value,
+    soil_depth: +document.getElementById('mpSoilDepth').value,
+  };
+  if(!d.name){ alert('Project name required'); return; }
+  const r = await api('POST', '/projects', d);
+  hideModal('modalProject');
+  await loadProjects();
+  selectProject(r.id);
+}
+
+async function selectProject(pid){
+  if(!pid){ currentProject=null; return; }
+  currentProject = +pid;
+  document.getElementById('projectSelect').value = pid;
+  const p = await api('GET', `/projects/${pid}`);
+  // Populate project settings tab
+  ['Name','Desc','Code','WindSpeed','WindExp','WindZone','SDS','SD1','R','Ie','SiteClass','SoilBearing','SoilDepth'].forEach(k => {
+    const el = document.getElementById('p'+k);
+    if(!el) return;
+    const map = {Name:'name',Desc:'description',Code:'code_standard',WindSpeed:'wind_speed',
+                 WindExp:'wind_exposure',WindZone:'wind_zone',SDS:'seismic_sds',SD1:'seismic_sd1',
+                 R:'seismic_r',Ie:'seismic_ie',SiteClass:'site_class',SoilBearing:'soil_bearing',SoilDepth:'soil_depth'};
+    if(map[k] in p) el.value = p[map[k]];
+  });
+  // Load all data
+  await Promise.all([loadEquipment(), loadLoadCases(), loadNodalLoads(), loadDistLoads(),
+                     loadCombos(), loadRack(), loadSections()]);
+  loadSummary();
+}
+
+async function saveProject(){
+  if(!currentProject){ alert('Create a project first'); return; }
+  const d = {
+    name: document.getElementById('pName').value,
+    description: document.getElementById('pDesc').value,
+    code_standard: document.getElementById('pCode').value,
+    wind_speed: +document.getElementById('pWindSpeed').value,
+    wind_exposure: document.getElementById('pWindExp').value,
+    wind_zone: document.getElementById('pWindZone').value,
+    seismic_sds: +document.getElementById('pSDS').value,
+    seismic_sd1: +document.getElementById('pSD1').value,
+    seismic_r: +document.getElementById('pR').value,
+    seismic_ie: +document.getElementById('pIe').value,
+    site_class: document.getElementById('pSiteClass').value,
+    soil_bearing: +document.getElementById('pSoilBearing').value,
+    soil_depth: +document.getElementById('pSoilDepth').value,
+  };
+  await api('PUT', `/projects/${currentProject}`, d);
+  await loadProjects();
+  alert('Project settings saved.');
+}
+
+async function deleteProject(pid){
+  if(!confirm('Delete this project and all its data?')) return;
+  await api('DELETE', `/projects/${pid}`);
+  if(currentProject===pid){ currentProject=null; }
+  loadProjects();
+}
+
+// ─── EQUIPMENT ───────────────────────────────────────────────────
+async function loadEquipment(){
+  if(!currentProject) return;
+  const data = await api('GET', `/projects/${currentProject}/equipment`);
+  const tbody = document.querySelector('#tblEquipment tbody');
+  tbody.innerHTML = '';
+  data.forEach(e => {
+    tbody.innerHTML += `<tr>
+      <td>${e.tag}</td><td>${e.type}</td><td>${e.description||''}</td>
+      <td>${fmt(e.weight_operating)}</td><td>${fmt(e.weight_empty)}</td>
+      <td>${fmt(e.length_mm,0)}×${fmt(e.diameter_mm,0)}×${fmt(e.height_mm,0)}</td>
+      <td>${e.orientation}</td>
+      <td>${fmt(e.pos_x,0)} / ${fmt(e.pos_y,0)} / ${fmt(e.pos_z,0)}</td>
+      <td>${e.tier_level}</td><td>${e.bay_number}</td><td>${e.support_type}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary me-1" onclick="showNozzles(${e.id},'${e.tag}')"><i class="bi bi-arrows-angle-expand"></i></button>
+        <button class="btn btn-sm btn-outline-secondary me-1" onclick="editEquipment(${e.id})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="deleteEquipment(${e.id})"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`;
+  });
+  document.getElementById('eqCount').textContent = `${data.length} items`;
+}
+
+async function saveEquipment(){
+  if(!currentProject) return;
+  const d = {
+    tag: document.getElementById('eqTag').value,
+    type: document.getElementById('eqType').value,
+    description: document.getElementById('eqDesc').value,
+    weight_empty: +document.getElementById('eqWeEmpty').value,
+    weight_operating: +document.getElementById('eqWeOp').value,
+    weight_test: +document.getElementById('eqWeTest').value,
+    length_mm: +document.getElementById('eqLength').value,
+    diameter_mm: +document.getElementById('eqDia').value,
+    height_mm: +document.getElementById('eqHeight').value,
+    cog_x: +document.getElementById('eqCogX').value,
+    cog_y: +document.getElementById('eqCogY').value,
+    cog_z: +document.getElementById('eqCogZ').value,
+    pos_x: +document.getElementById('eqPosX').value,
+    pos_y: +document.getElementById('eqPosY').value,
+    pos_z: +document.getElementById('eqPosZ').value,
+    orientation: document.getElementById('eqOrient').value,
+    elevation: +document.getElementById('eqElevation').value,
+    tier_level: +document.getElementById('eqTier').value,
+    bay_number: +document.getElementById('eqBay').value,
+    support_type: document.getElementById('eqSupport').value,
+    notes: document.getElementById('eqNotes').value,
+  };
+  if(!d.tag){ alert('Tag required'); return; }
+  await api('POST', `/projects/${currentProject}/equipment`, d);
+  hideModal('modalEquipment');
+  loadEquipment();
+}
+
+async function deleteEquipment(eid){
+  if(!confirm('Delete equipment?')) return;
+  await api('DELETE', `/equipment/${eid}`);
+  loadEquipment();
+  document.getElementById('nozzlePanel').classList.add('d-none');
+}
+
+async function showNozzles(eid, tag){
+  currentEqId = eid;
+  document.getElementById('nozzleEqTag').textContent = tag;
+  document.getElementById('nozzlePanel').classList.remove('d-none');
+  loadNozzles(eid);
+  // Load baseplate
+  const bp = await api('GET', `/equipment/${eid}/baseplate`);
+  if(bp && bp.plate_length){
+    document.getElementById('bpLength').value = bp.plate_length;
+    document.getElementById('bpWidth').value  = bp.plate_width;
+    document.getElementById('bpThick').value  = bp.plate_thickness;
+    document.getElementById('bpBoltDia').value= bp.anchor_bolt_dia;
+    document.getElementById('bpBoltQty').value= bp.anchor_bolt_qty;
+    document.getElementById('bpBoltPCD').value= bp.anchor_bolt_pcd;
+  }
+}
+
+async function loadNozzles(eid){
+  const data = await api('GET', `/equipment/${eid}/nozzles`);
+  const tbody = document.querySelector('#tblNozzles tbody');
+  tbody.innerHTML = '';
+  data.forEach(n => {
+    tbody.innerHTML += `<tr>
+      <td>${n.nozzle_tag}</td><td>${n.service||''}</td><td>${n.size_dn}</td><td>${n.rating}</td>
+      <td>${fmt(n.pos_x,0)}/${fmt(n.pos_y,0)}/${fmt(n.pos_z,0)}</td>
+      <td>${n.direction}</td>
+      <td>${fmt(n.force_fx,0)}</td><td>${fmt(n.force_fy,0)}</td><td>${fmt(n.force_fz,0)}</td>
+      <td>${fmt(n.moment_mx,0)}</td><td>${fmt(n.moment_my,0)}</td><td>${fmt(n.moment_mz,0)}</td>
+      <td><button class="btn btn-sm btn-outline-secondary" onclick="deleteNozzle(${n.id})"><i class="bi bi-trash"></i></button></td>
+    </tr>`;
+  });
+}
+
+async function saveNozzle(){
+  if(!currentEqId) return;
+  const d = {
+    nozzle_tag: document.getElementById('nzTag').value,
+    service: document.getElementById('nzService').value,
+    size_dn: +document.getElementById('nzDN').value,
+    rating: document.getElementById('nzRating').value,
+    direction: document.getElementById('nzDir').value,
+    pos_x: +document.getElementById('nzPosX').value,
+    pos_y: +document.getElementById('nzPosY').value,
+    pos_z: +document.getElementById('nzPosZ').value,
+    force_fx: +document.getElementById('nzFx').value,
+    force_fy: +document.getElementById('nzFy').value,
+    force_fz: +document.getElementById('nzFz').value,
+    moment_mx: +document.getElementById('nzMx').value,
+    moment_my: +document.getElementById('nzMy').value,
+    moment_mz: +document.getElementById('nzMz').value,
+  };
+  await api('POST', `/equipment/${currentEqId}/nozzles`, d);
+  hideModal('modalNozzle');
+  loadNozzles(currentEqId);
+}
+
+async function deleteNozzle(nid){
+  await api('DELETE', `/nozzles/${nid}`);
+  loadNozzles(currentEqId);
+}
+
+async function saveBaseplate(){
+  if(!currentEqId) return;
+  const d = {
+    plate_length: +document.getElementById('bpLength').value,
+    plate_width: +document.getElementById('bpWidth').value,
+    plate_thickness: +document.getElementById('bpThick').value,
+    anchor_bolt_dia: +document.getElementById('bpBoltDia').value,
+    anchor_bolt_qty: +document.getElementById('bpBoltQty').value,
+    anchor_bolt_pcd: +document.getElementById('bpBoltPCD').value,
+  };
+  await api('PUT', `/equipment/${currentEqId}/baseplate`, d);
+  alert('Baseplate saved.');
+}
+
+// ─── LOADS ───────────────────────────────────────────────────────
+async function loadLoadCases(){
+  if(!currentProject) return;
+  const data = await api('GET', `/projects/${currentProject}/load-cases`);
+  const tbody = document.querySelector('#tblLoadCases tbody');
+  tbody.innerHTML = '';
+  data.forEach(lc => {
+    tbody.innerHTML += `<tr>
+      <td>${lc.id}</td><td><strong>${lc.name}</strong></td>
+      <td>${lc.type}</td><td style="color:var(--muted)">${lc.description||''}</td>
+      <td><span class="${lc.active? 'badge-pass':'badge-unch'}">${lc.active? 'Active':'Inactive'}</span></td>
+    </tr>`;
+  });
+  // Populate dropdowns
+  const opts = data.map(lc => `<option value="${lc.id}">${lc.name} — ${lc.type}</option>`).join('');
+  document.getElementById('nlCase').innerHTML = opts;
+  document.getElementById('dlCase').innerHTML = opts;
+}
+
+async function loadNodalLoads(){
+  if(!currentProject) return;
+  const data = await api('GET', `/projects/${currentProject}/nodal-loads`);
+  const tbody = document.querySelector('#tblNodalLoads tbody');
+  tbody.innerHTML = '';
+  data.forEach(n => {
+    tbody.innerHTML += `<tr>
+      <td>${n.node_tag}</td><td>${n.load_case_name||n.load_case_id}</td>
+      <td>${fmt(n.fx,0)}</td><td>${fmt(n.fy,0)}</td><td>${fmt(n.fz,0)}</td>
+      <td>${fmt(n.mx,0)}</td><td>${fmt(n.my,0)}</td><td>${fmt(n.mz,0)}</td>
+      <td style="color:var(--muted)">${n.load_source||''}</td>
+      <td><button class="btn btn-sm btn-outline-secondary" onclick="deleteNodalLoad(${n.id})"><i class="bi bi-trash"></i></button></td>
+    </tr>`;
+  });
+}
+
+async function saveNodalLoad(){
+  if(!currentProject) return;
+  const d = {
+    load_case_id: +document.getElementById('nlCase').value,
+    node_tag: document.getElementById('nlNode').value,
+    fx: +document.getElementById('nlFx').value,
+    fy: +document.getElementById('nlFy').value,
+    fz: +document.getElementById('nlFz').value,
+    mx: +document.getElementById('nlMx').value,
+    my: +document.getElementById('nlMy').value,
+    mz: +document.getElementById('nlMz').value,
+    load_source: document.getElementById('nlSource').value,
+  };
+  await api('POST', `/projects/${currentProject}/nodal-loads`, d);
+  hideModal('modalNodalLoad');
+  loadNodalLoads();
+}
+
+async function deleteNodalLoad(id){ await api('DELETE', `/nodal-loads/${id}`); loadNodalLoads(); }
+
+async function loadDistLoads(){
+  if(!currentProject) return;
+  const data = await api('GET', `/projects/${currentProject}/distributed-loads`);
+  const tbody = document.querySelector('#tblDistLoads tbody');
+  tbody.innerHTML = '';
+  data.forEach(d => {
+    tbody.innerHTML += `<tr>
+      <td>${d.member_tag}</td><td>${d.load_case_name||d.load_case_id}</td>
+      <td>${d.load_type}</td><td>${fmt(d.w1,3)}</td><td>${fmt(d.w2,3)}</td>
+      <td>${fmt(d.distance_a,0)}</td><td>${fmt(d.distance_b,0)}</td>
+      <td>${d.direction}</td>
+      <td><button class="btn btn-sm btn-outline-secondary" onclick="deleteDistLoad(${d.id})"><i class="bi bi-trash"></i></button></td>
+    </tr>`;
+  });
+}
+
+async function saveDistLoad(){
+  if(!currentProject) return;
+  const d = {
+    load_case_id: +document.getElementById('dlCase').value,
+    member_tag: document.getElementById('dlMember').value,
+    load_type: document.getElementById('dlType').value,
+    w1: +document.getElementById('dlW1').value,
+    w2: +document.getElementById('dlW2').value,
+    distance_a: +document.getElementById('dlA').value,
+    distance_b: +document.getElementById('dlB').value,
+    direction: document.getElementById('dlDir').value,
+  };
+  await api('POST', `/projects/${currentProject}/distributed-loads`, d);
+  hideModal('modalDistLoad');
+  loadDistLoads();
+}
+
+async function deleteDistLoad(id){ await api('DELETE', `/distributed-loads/${id}`); loadDistLoads(); }
+
+async function loadCombos(){
+  if(!currentProject) return;
+  const data = await api('GET', `/projects/${currentProject}/load-combinations`);
+  const tbody = document.querySelector('#tblCombos tbody');
+  tbody.innerHTML = '';
+  data.forEach(c => {
+    let fac = {};
+    try { fac = JSON.parse(c.factors); } catch(e){}
+    tbody.innerHTML += `<tr>
+      <td><strong>${c.combo_name}</strong></td><td>${c.combo_type}</td>
+      <td>${fac.DL??'—'}</td><td>${fac.LL??'—'}</td><td>${fac.WL??'—'}</td>
+      <td>${fac.EQ??'—'}</td><td>${fac.TL??'—'}</td>
+      <td>${c.governing? '<span class="badge-pass">GOV</span>':''}</td>
+      <td><button class="btn btn-sm btn-outline-secondary" onclick="deleteCombo(${c.id})"><i class="bi bi-trash"></i></button></td>
+    </tr>`;
+  });
+}
+
+async function generateCombos(type){
+  if(!currentProject){ alert('Select a project first'); return; }
+  const r = await api('POST', `/projects/${currentProject}/load-combinations/generate`, {type});
+  alert(r.message);
+  loadCombos();
+}
+
+async function deleteCombo(id){ await api('DELETE', `/load-combinations/${id}`); loadCombos(); }
+
+// ─── STRUCTURE ────────────────────────────────────────────────────
+async function loadRack(){
+  if(!currentProject) return;
+  const racks = await api('GET', `/projects/${currentProject}/rack`);
+  if(racks.length > 0){
+    const rack = racks[0];
+    rackId = rack.id;
+    document.getElementById('rTag').value         = rack.rack_tag;
+    document.getElementById('rBrace').value        = rack.bracing_type;
+    document.getElementById('rBays').value         = rack.number_of_bays;
+    document.getElementById('rBaySpan').value      = rack.bay_span;
+    document.getElementById('rWidth').value        = rack.width_of_rack;
+    document.getElementById('rTiers').value        = rack.number_of_tiers;
+    document.getElementById('rOriginX').value      = rack.origin_x;
+    document.getElementById('rOrientation').value  = rack.orientation_angle;
+    try {
+      const th = JSON.parse(rack.tier_heights);
+      document.getElementById('rTierHeights').value = th.join(',');
+    } catch(e){}
+    drawRackSVG(rack);
+    updateRackSummary(rack);
+    loadMembers();
+  }
+}
+
+async function saveRack(){
+  if(!currentProject){ alert('Select a project first'); return; }
+  const thStr = document.getElementById('rTierHeights').value;
+  const th = thStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+  const d = {
+    rack_tag: document.getElementById('rTag').value,
+    bracing_type: document.getElementById('rBrace').value,
+    number_of_bays: +document.getElementById('rBays').value,
+    bay_span: +document.getElementById('rBaySpan').value,
+    width_of_rack: +document.getElementById('rWidth').value,
+    number_of_tiers: th.length,
+    tier_heights: JSON.stringify(th),
+    origin_x: +document.getElementById('rOriginX').value,
+    origin_y: +document.getElementById('rOriginY').value || 0,
+    origin_z: 0,
+    orientation_angle: +document.getElementById('rOrientation').value,
+  };
+  if(rackId){
+    await api('PUT', `/rack/${rackId}`, d);
+  } else {
+    const r = await api('POST', `/projects/${currentProject}/rack`, d);
+    rackId = r.id;
+  }
+  drawRackSVG(d);
+  updateRackSummary(d);
+  alert('Rack saved.');
+}
+
+async function generateGrid(){
+  if(!rackId){ alert('Save rack first'); return; }
+  const r = await api('POST', `/rack/${rackId}/generate-grid`);
+  alert(r.message);
+  loadMembers();
+}
+
+function drawRackSVG(rack){
+  const svg = document.getElementById('rack-svg');
+  const W = 680, H = 260;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  let th = [0];
+  try {
+    const parsed = typeof rack.tier_heights === 'string'? JSON.parse(rack.tier_heights): rack.tier_heights;
+    if(Array.isArray(parsed)) th = [0, ...parsed];
+  } catch(e){}
+
+  const n_bays = rack.number_of_bays || 3;
+  const bay_span = rack.bay_span || 9000;
+
+  const maxH = th[th.length-1] || 10000;
+  const totalL = n_bays * bay_span;
+  const pad = 40;
+  const scaleX = (W - 2*pad) / totalL;
+  const scaleY = (H - 2*pad) / maxH;
+
+  function tx(z){ return pad + z * scaleX; }
+  function ty(y){ return H - pad - y * scaleY; }
+
+  let html = '';
+  // Grid
+  for(let bi = 0; bi <= n_bays; bi++){
+    const x = tx(bi * bay_span);
+    html += `<line x1="${x}" y1="${pad}" x2="${x}" y2="${H-pad}" stroke="#1e3a5c" stroke-width="0.5"/>`;
+  }
+  th.forEach(h => {
+    const y = ty(h);
+    html += `<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#1e3a5c" stroke-width="0.5"/>`;
+    html += `<text x="${pad-2}" y="${y+3}" fill="#7a9abb" font-size="8" text-anchor="end">${(h/1000).toFixed(1)}m</text>`;
+  });
+
+  // Columns
+  for(let bi = 0; bi <= n_bays; bi++){
+    const x = tx(bi * bay_span);
+    html += `<line x1="${x}" y1="${ty(th[0])}" x2="${x}" y2="${ty(maxH)}" stroke="#4a9aff" stroke-width="2"/>`;
+    html += `<text x="${x}" y="${H-pad+12}" fill="#7a9abb" font-size="8" text-anchor="middle">B${bi+1}</text>`;
+  }
+
+  // Tier beams
+  th.slice(1).forEach((h,i) => {
+    const y = ty(h);
+    html += `<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#e8a020" stroke-width="2"/>`;
+    html += `<text x="${W-pad+4}" y="${y+3}" fill="#e8a020" font-size="9">T${i+1}</text>`;
+  });
+
+  // Braces (X) in end bays
+  if(rack.bracing_type === 'X-BRACE'){
+    th.slice(1).forEach((h, ti) => {
+      const h_bot = th[ti];
+      [[0, bay_span]].forEach(([z1, z2]) => {
+        html += `<line x1="${tx(z1)}" y1="${ty(h_bot)}" x2="${tx(z2)}" y2="${ty(h)}" stroke="#ff6b6b" stroke-width="1" stroke-dasharray="3,2"/>`;
+        html += `<line x1="${tx(z2)}" y1="${ty(h_bot)}" x2="${tx(z1)}" y2="${ty(h)}" stroke="#ff6b6b" stroke-width="1" stroke-dasharray="3,2"/>`;
+      });
+    });
+  }
+
+  // Column bases (pins)
+  for(let bi = 0; bi <= n_bays; bi++){
+    const x = tx(bi * bay_span);
+    const y = ty(0);
+    html += `<polygon points="${x},${y} ${x-6},${y+10} ${x+6},${y+10}" fill="#e8a020"/>`;
+    html += `<line x1="${x-8}" y1="${y+12}" x2="${x+8}" y2="${y+12}" stroke="#e8a020" stroke-width="1.5"/>`;
+  }
+
+  svg.innerHTML = html;
+}
+
+function updateRackSummary(rack){
+  let th = [];
+  try { th = JSON.parse(rack.tier_heights || '[]'); } catch(e){}
+  const n_bays = rack.number_of_bays || 3;
+  const bay_span = rack.bay_span || 9000;
+  const total = n_bays * bay_span;
+  document.getElementById('rackSummary').innerHTML =
+    `<strong>Rack:</strong> ${rack.rack_tag || 'RACK-A'} &nbsp;|&nbsp;
+     <strong>Bays:</strong> ${n_bays} × ${(bay_span/1000).toFixed(1)}m = ${(total/1000).toFixed(1)}m total &nbsp;|&nbsp;
+     <strong>Tiers:</strong> ${th.map((h,i)=>`T${i+1}@${(h/1000).toFixed(2)}m`).join(', ')} &nbsp;|&nbsp;
+     <strong>Width:</strong> ${((rack.width_of_rack||6000)/1000).toFixed(1)}m &nbsp;|&nbsp;
+     <strong>Bracing:</strong> ${rack.bracing_type||'X-BRACE'}`;
+}
+
+async function loadMembers(){
+  if(!currentProject) return;
+  const data = await api('GET', `/projects/${currentProject}/members`);
+  const tbody = document.querySelector('#tblMembers tbody');
+  tbody.innerHTML = '';
+  const filter = document.getElementById('memberTypeFilter').value;
+  data.filter(m => !filter || m.member_type===filter).forEach(m => {
+    const KL = (m.unbraced_length||0) * (m.k_factor||1);
+    tbody.innerHTML += `<tr>
+      <td>${m.member_tag}</td>
+      <td><span style="color:${m.member_type==='BEAM'?'#4a9aff':m.member_type==='COLUMN'?'#5bdb7f':m.member_type==='BRACE'?'#ff6b6b':'#e8a020'}">${m.member_type}</span></td>
+      <td>${m.start_node||''}</td><td>${m.end_node||''}</td>
+      <td>${fmt(m.length_mm,0)}</td>
+      <td>${m.section_name||'<span style="color:#ff6b6b">Unassigned</span>'}</td>
+      <td>${m.material_name||'—'}</td>
+      <td>${fmt(KL,0)}</td><td>${fmt(m.k_factor,2)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary" onclick="assignSection(${m.id})"><i class="bi bi-tag"></i></button>
+      </td>
+    </tr>`;
+  });
+  document.getElementById('memberCount').textContent = `${data.length} members`;
+}
+
+function filterMembers(){ loadMembers(); }
+
+async function assignSection(mid){
+  const desig = prompt('Enter section designation (e.g. W310X97, HSS200X200X8):');
+  if(!desig) return;
+  const sec = await api('GET', `/sections/${encodeURIComponent(desig)}`);
+  if(sec.error){ alert(sec.error); return; }
+  await api('PUT', `/members/${mid}`, {section_id: sec.id});
+  loadMembers();
+}
+
+async function loadSections(){
+  const type   = document.getElementById('secTypeFilter').value;
+  const search = document.getElementById('secSearch').value;
+  const qs     = new URLSearchParams({type, q:search}).toString();
+  const data   = await api('GET', `/sections?${qs}`);
+  const tbody  = document.querySelector('#tblSections tbody');
+  tbody.innerHTML = '';
+  data.forEach(s => {
+    tbody.innerHTML += `<tr>
+      <td><strong>${s.designation}</strong></td><td>${s.section_type}</td>
+      <td>${fmt(s.d,0)}</td><td>${fmt(s.bf,0)}</td>
+      <td>${fmt(s.area,0)}</td><td>${(s.ix/1e6).toFixed(1)}</td>
+      <td>${(s.sx/1e3).toFixed(1)}</td><td>${(s.zx/1e3||0).toFixed(1)}</td>
+      <td>${fmt(s.rx,1)}</td><td>${fmt(s.ry,1)}</td>
+      <td>${fmt(s.weight_per_m,1)}</td>
+    </tr>`;
+  });
+}
+
+// ─── CALCULATIONS ─────────────────────────────────────────────────
+function setStepState(step, state){
+  const el = document.getElementById(`step-${step}`);
+  if(!el) return;
+  el.className = `run-step step-${state}`;
+  const icon = el.querySelector('.icon');
+  if(state==='done') icon.className='bi bi-check-circle-fill icon';
+  else if(state==='fail') icon.className='bi bi-x-circle-fill icon';
+  else if(state==='run') icon.className='bi bi-arrow-repeat icon';
+  else icon.className = el.querySelector('.icon').className.replace(/bi-\S+/,'bi-circle');
+}
+
+async function runStep(step){
+  if(!currentProject){ alert('Select a project first'); return; }
+  setStepState(step, 'run');
+  log(`Running ${step}...`);
+  const r = await api('POST', `/projects/${currentProject}/calculate/${step}`);
+  if(r.error){
+    log(`ERROR: ${r.error}`, 'err');
+    setStepState(step, 'fail');
+  } else {
+    log(r.message || 'Done', 'ok');
+    setStepState(step, 'done');
+  }
+  loadSummary();
+  loadMemberResults();
+  loadReactionResults();
+  loadFoundationResults();
+}
+
+async function runAll(){
+  if(!currentProject){ alert('Select a project first'); return; }
+  document.getElementById('calcProgress').style.width='10%';
+  log('Starting complete analysis...', '');
+  const steps = ['reactions','section-checks','foundations'];
+  for(let i=0; i<steps.length; i++){
+    document.getElementById('calcProgress').style.width = `${(i+1)/steps.length*100}%`;
+    await runStep(steps[i]);
+  }
+  document.getElementById('calcProgress').style.width='100%';
+  log('Analysis complete.', 'ok');
+}
+
+async function calcSectionCapacity(){
+  const desig = document.getElementById('capSec').value.trim();
+  if(!desig){ alert('Enter section designation'); return; }
+  const r = await api('POST', `/sections/${encodeURIComponent(desig)}/capacity`, {
+    fy: +document.getElementById('capFy').value,
+    Lb: +document.getElementById('capLb').value,
+    KL: +document.getElementById('capKL').value,
+  });
+  const box = document.getElementById('capResult');
+  box.style.display = 'block';
+  if(r.error){
+    box.innerHTML = `<span style="color:#ff6b6b">Error: ${r.error}</span>`;
+  } else {
+    box.innerHTML = `<span style="color:#5bdb7f">${r.designation}</span><br>
+      φMn = <strong>${r.phi_Mn_kNm} kN.m</strong> &nbsp;|&nbsp;
+      φVn = <strong>${r.phi_Vn_kN} kN</strong> &nbsp;|&nbsp;
+      φPn = <strong>${r.phi_Pn_kN} kN</strong>`;
+  }
+}
+
+async function loadSummary(){
+  if(!currentProject) return;
+  const s = await api('GET', `/projects/${currentProject}/results/summary`);
+  document.getElementById('sEquip').textContent    = s.equipment_count || 0;
+  document.getElementById('sMembers').textContent  = s.member_total || 0;
+  document.getElementById('sFootings').textContent = s.footing_total || 0;
+  document.getElementById('sMaxUC').textContent    = s.max_uc? s.max_uc.toFixed(2): '—';
+  document.getElementById('sMemberPass').textContent = `${s.member_pass||0} Pass`;
+  document.getElementById('sMemberMarg').textContent = `${s.member_marginal||0} Marg.`;
+  document.getElementById('sMemberFail').textContent = `${s.member_fail||0} Fail`;
+  document.getElementById('sMaxBearing').textContent = s.max_bearing_kpa? s.max_bearing_kpa.toFixed(0)+' kPa': '—';
+  const ovEl = document.getElementById('sOverall');
+  ovEl.textContent = s.overall_status || '—';
+  ovEl.style.color = s.overall_status==='PASS'? '#5bdb7f': s.overall_status==='FAIL'? '#ff6b6b': '#ffc107';
+}
+
+// ─── RESULTS ─────────────────────────────────────────────────────
+async function loadMemberResults(){
+  if(!currentProject) return;
+  const filter = document.getElementById('resMemberFilter').value;
+  const data   = await api('GET', `/projects/${currentProject}/results/members`);
+  const tbody  = document.querySelector('#tblResMembers tbody');
+  tbody.innerHTML = '';
+  data.filter(r => !filter || r.status===filter).forEach(r => {
+    tbody.innerHTML += `<tr>
+      <td><strong>${r.member_tag}</strong></td>
+      <td>${r.section||'—'}</td>
+      <td>${r.member_type||'—'}</td>
+      <td>${r.combo_name}</td>
+      <td>${fmtK(r.axial_force)}</td>
+      <td>${fmtK(r.shear_y)}</td>
+      <td>${fmtM(r.moment_z)}</td>
+      <td>${fmt(r.max_deflection_mm,1)}</td>
+      <td>${ucBadge(r.uc_bending)}</td>
+      <td>${ucBadge(r.uc_shear)}</td>
+      <td>${ucBadge(r.uc_combined)}</td>
+      <td>${fmt(r.phi_mn,1)}</td>
+      <td>${fmt(r.phi_vn,1)}</td>
+      <td>${statusBadge(r.status)}</td>
+    </tr>`;
+  });
+}
+
+async function loadReactionResults(){
+  if(!currentProject) return;
+  const data  = await api('GET', `/projects/${currentProject}/results/reactions`);
+  const tbody = document.querySelector('#tblResReactions tbody');
+  tbody.innerHTML = '';
+  data.forEach(r => {
+    tbody.innerHTML += `<tr>
+      <td>${r.node_tag}</td>
+      <td>${r.combo_name||r.load_case||'—'}</td>
+      <td>${fmtK(r.rx)}</td><td>${fmtK(r.ry)}</td><td>${fmtK(r.rz)}</td>
+      <td>${fmtM(r.rmx)}</td><td>${fmtM(r.rmy)}</td><td>${fmtM(r.rmz)}</td>
+    </tr>`;
+  });
+}
+
+async function loadFoundationResults(){
+  if(!currentProject) return;
+  const data  = await api('GET', `/projects/${currentProject}/results/foundations`);
+  const tbody = document.querySelector('#tblResFoundations tbody');
+  tbody.innerHTML = '';
+  data.forEach(f => {
+    tbody.innerHTML += `<tr>
+      <td><strong>${f.footing_tag}</strong></td>
+      <td>${f.node_tag}</td>
+      <td>${fmt(f.width_mm,0)}×${fmt(f.length_mm,0)}×${fmt(f.thickness_mm,0)}</td>
+      <td>${fmt(f.depth_mm,0)}</td>
+      <td>${fmt(f.bearing_actual_kpa,1)}</td>
+      <td>${fmt(f.soil_bearing_kpa,1)}</td>
+      <td>${ucBadge(f.uc_punching)}</td>
+      <td>${ucBadge(f.uc_shear_x)}</td>
+      <td>${ucBadge(f.uc_shear_y)}</td>
+      <td>${ucBadge(f.uc_flexure_x)}</td>
+      <td>${ucBadge(f.uc_flexure_y)}</td>
+      <td>${f.rebar_bot_x}</td>
+      <td>${f.rebar_bot_y}</td>
+      <td>${statusBadge(f.status)}</td>
+    </tr>`;
+  });
+}
+
+// ─── IMPORT/EXPORT ────────────────────────────────────────────────
+const IMPORT_HINTS = {
+  'equipment-csv': 'Import equipment list (tanks, vessels, reactors, pumps, blowers, exchangers).\nRequired columns: TAG, TYPE. Download sample CSV for all column names and units.',
+  'nozzles-csv': 'Import nozzle loads from piping stress analysis.\nEquipment must be imported first. Nozzle forces/moments are automatically pushed to OL nodal loads on the rack.\nRequired columns: EQUIPMENT_TAG, NOZZLE_TAG, FX_N, FY_N, FZ_N, MX_NMM, MY_NMM, MZ_NMM.',
+};
+
+function updateImportHint(){
+  const type = document.getElementById('importType').value;
+  document.getElementById('importHint').textContent = IMPORT_HINTS[type] || '';
+}
+
+async function doImport(){
+  if(!currentProject){ alert('Select a project first'); return; }
+  const file = document.getElementById('importFile').files[0];
+  if(!file){ alert('Select a file'); return; }
+  const type = document.getElementById('importType').value;
+  const form = new FormData();
+  form.append('file', file);
+
+  const logBox = document.getElementById('importLog');
+  logBox.style.display = 'block';
+  logBox.style.color = '#d0e4f7';
+  logBox.textContent = 'Uploading...';
+
+  const r    = await fetch(`${API}/projects/${currentProject}/import/${type}`, {method:'POST', body:form});
+  const data = await r.json();
+
+  let msg = `Imported: ${data.added} rows`;
+  if(data.skipped)            msg += ` | Skipped: ${data.skipped}`;
+  if(data.nodal_loads_generated) msg += `\nNozzle resultant loads pushed to OL load case: ${data.nodal_loads_generated} nodes updated`;
+  if((data.errors||[]).length) msg += `\n\nWarnings / Errors:\n` + data.errors.join('\n');
+
+  logBox.style.color = data.errors?.length ? '#ffc107' : '#5bdb7f';
+  logBox.textContent = msg;
+
+  // Refresh relevant panels
+  if(type === 'equipment-csv') loadEquipment();
+  if(type === 'nozzles-csv')  { loadEquipment(); loadNodalLoads(); }
+}
+
+function downloadTemplate(type){
+  window.open(`${API}/templates/${type}`, '_blank');
+}
+
+function exportResultsCSV(){
+  if(!currentProject){ alert('Select a project first'); return; }
+  window.open(`${API}/projects/${currentProject}/export/results-csv`, '_blank');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  await loadProjects();
+  await loadSections();
+  const sel = document.getElementById('projectSelect');
+  if(sel.options.length > 1){ selectProject(sel.options[1].value); }
+});
+</script>
+
+<!-- ═══ THREE.JS 3D VIEWER MODULE ════════════════════════════════ -->
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─── CONSTANTS ──────────────────────────────────────────────────
+const S = 1/1000;   // mm → m scale factor
+const EQ_COLORS = {
+  TANK:0x607D8B, VESSEL:0xFF8F00, DRUM:0x8D6E63, REACTOR:0x9C27B0,
+  PUMP:0x2E7D32, COMPRESSOR:0xE65100, BLOWER:0xF57C00,
+  EXCHANGER:0x00695C, COLUMN:0xAD1457, DEFAULT:0x546E7A,
+};
+const MEM_COLORS = {
+  BEAM:0x1565C0, COLUMN:0x37474F, BRACE:0xB71C1C, STRINGER:0x00695C,
+};
+const SEL_COLOR = 0xFFD600;
+
+// ─── STATE ──────────────────────────────────────────────────────
+let scene, camera, renderer, controls;
+let raycaster, pointer;
+let sceneReady = false;
+let labelsOn = true, wireOn = false, nozzlesOn = true;
+let allMeshes = [];       // {mesh, id, type, data}
+let selectedMesh = null;
+let labelGroup, nozzleGroup;
+let sceneBox = new THREE.Box3();
+
+// ─── INIT SCENE ─────────────────────────────────────────────────
+function initScene() {
+  if (sceneReady) return;
+  const container = document.getElementById('viewport3d');
+  const W = container.clientWidth || 800;
+  const H = container.clientHeight || 500;
+
+  // Scene
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x06101a);
+  scene.fog = new THREE.FogExp2(0x06101a, 0.012);
+
+  // Camera
+  camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 5000);
+  camera.position.set(40, 25, 50);
+
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(W, H);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  // Controls
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.minDistance = 1;
+  controls.maxDistance = 2000;
+  controls.mouseButtons = {
+    LEFT: THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.PAN,
+  };
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(60, 120, 80);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 0.5;
+  sun.shadow.camera.far = 500;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x6699cc, 0.35);
+  fill.position.set(-80, 30, -60);
+  scene.add(fill);
+
+  // Ground grid (100m × 100m, 2m cells)
+  const grid = new THREE.GridHelper(200, 100, 0x1a3050, 0x0d1e30);
+  scene.add(grid);
+
+  // World axes
+  buildAxes(scene, 8);
+
+  // Groups
+  labelGroup  = new THREE.Group(); labelGroup.name  = 'labels';
+  nozzleGroup = new THREE.Group(); nozzleGroup.name = 'nozzles';
+  scene.add(labelGroup);
+  scene.add(nozzleGroup);
+
+  // Raycaster
+  raycaster = new THREE.Raycaster();
+  pointer   = new THREE.Vector2();
+  renderer.domElement.addEventListener('pointerdown', onPointerDown);
+  renderer.domElement.addEventListener('mousemove',   onMouseMove);
+
+  // Resize
+  new ResizeObserver(() => {
+    const nW = container.clientWidth;
+    const nH = container.clientHeight;
+    camera.aspect = nW / nH;
+    camera.updateProjectionMatrix();
+    renderer.setSize(nW, nH);
+  }).observe(container);
+
+  // Animate
+  (function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    // Billboard labels: face camera
+    labelGroup.children.forEach(s => s.quaternion.copy(camera.quaternion));
+    renderer.render(scene, camera);
+  })();
+
+  sceneReady = true;
+}
+
+// ─── WORLD AXES ─────────────────────────────────────────────────
+function buildAxes(parent, len) {
+  const mat = (c) => new THREE.LineBasicMaterial({ color: c });
+  const pts = (a, b) => new THREE.BufferGeometry().setFromPoints([a, b]);
+  const O = new THREE.Vector3(0, 0.01, 0);
+  parent.add(new THREE.Line(pts(O, new THREE.Vector3(len, 0.01, 0)), mat(0xff3333)));
+  parent.add(new THREE.Line(pts(O, new THREE.Vector3(0, len, 0)),    mat(0x33ff33)));
+  parent.add(new THREE.Line(pts(O, new THREE.Vector3(0, 0.01, len)), mat(0x3388ff)));
+  // Cones
+  [[len,0,0,0,0,-Math.PI/2,0xff3333],
+   [0,len,0,0,0,0,0x33ff33],
+   [0,0,len,Math.PI/2,0,0,0x3388ff]].forEach(([x,y,z,rx,ry,rz,c]) => {
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.2, 0.6, 8),
+      new THREE.MeshLambertMaterial({color:c})
+    );
+    cone.position.set(x,y,z);
+    cone.rotation.set(rx,ry,rz);
+    parent.add(cone);
+  });
+  // Labels via sprites
+  [['X',len+0.8,0,0,'#ff3333'],['Y',0,len+0.8,0,'#33ff33'],['Z',0,0,len+0.8,'#3388ff']]
+    .forEach(([t,x,y,z,c]) => {
+      parent.add(makeSprite(t, c, 1.2, [x,y,z]));
+    });
+}
+
+// ─── SPRITE TEXT ────────────────────────────────────────────────
+function makeSprite(text, color='#ffffff', scale=2, position=[0,0,0]) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 48;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,128,48);
+  ctx.fillStyle = 'rgba(6,16,26,0.72)';
+  ctx.beginPath(); ctx.roundRect(2,2,124,44,8); ctx.fill();
+  ctx.fillStyle = color;
+  ctx.font = 'bold 28px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 64, 34);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(c), depthTest: false, transparent: true
+  }));
+  sp.position.set(...position);
+  sp.scale.set(scale * 1.8, scale * 0.65, 1);
+  return sp;
+}
+
+// ─── LOAD MODEL ─────────────────────────────────────────────────
+async function loadModel(pid) {
+  if (!sceneReady) initScene();
+
+  // Clear previous model objects (keep grid, axes, lights)
+  allMeshes.forEach(o => scene.remove(o.mesh));
+  allMeshes = [];
+  labelGroup.clear();
+  nozzleGroup.clear();
+  sceneBox = new THREE.Box3();
+
+  const [eqList, memberList, nodeList, nozzleList] =
+    await Promise.all([
+      fetch(`/api/projects/${pid}/equipment`).then(r=>r.json()),
+      fetch(`/api/projects/${pid}/members`).then(r=>r.json()),
+      fetch(`/api/projects/${pid}/nodes`).then(r=>r.json()),
+      fetchAllNozzles(pid, eqList_ => eqList_),
+    ]);
+
+  const nozzles = await fetchAllNozzles(pid, eqList);
+
+  // Build node lookup
+  const nodeMap = {};
+  nodeList.forEach(n => { nodeMap[n.node_tag] = n; });
+
+  renderStructure(memberList, nodeMap);
+  renderEquipment(eqList);
+  renderNozzleForces(nozzles, eqList);
+  buildModelTree(eqList, memberList, nodeList);
+  fitView();
+
+  const eqN  = eqList.length;
+  const memN = memberList.length;
+  const nzN  = nozzles.length;
+  document.getElementById('vpStatus').textContent =
+    `${eqN} equipment  ·  ${memN} members  ·  ${nodeList.length} nodes  ·  ${nzN} nozzles`;
+}
+
+async function fetchAllNozzles(pid, eqList) {
+  if (!eqList || !eqList.length) return [];
+  const all = await Promise.all(
+    eqList.map(eq => fetch(`/api/equipment/${eq.id}/nozzles`).then(r=>r.json()))
+  );
+  // attach equipment data
+  const flat = [];
+  all.forEach((nzArr, i) => {
+    nzArr.forEach(nz => { flat.push({...nz, _eq: eqList[i]}); });
+  });
+  return flat;
+}
+
+// ─── RENDER STRUCTURE ────────────────────────────────────────────
+function renderStructure(members, nodeMap) {
+  members.forEach(m => {
+    const n1 = nodeMap[m.start_node];
+    const n2 = nodeMap[m.end_node];
+    if (!n1 || !n2) return;
+    const p1 = new THREE.Vector3(n1.x*S, n1.y*S, n1.z*S);
+    const p2 = new THREE.Vector3(n2.x*S, n2.y*S, n2.z*S);
+    const color  = MEM_COLORS[m.member_type] ?? MEM_COLORS.BEAM;
+    const w = m.member_type === 'COLUMN' ? 0.22
+            : m.member_type === 'BRACE'  ? 0.12
+            : m.member_type === 'BEAM'   ? 0.20 : 0.15;
+    const mesh = makeMemberMesh(p1, p2, w, color);
+    if (!mesh) return;
+    mesh.userData = { id: m.id, type: 'MEMBER', data: m };
+    mesh.castShadow = true;
+    scene.add(mesh);
+    allMeshes.push({ mesh, id: `mem-${m.id}`, type: 'MEMBER', data: m });
+    sceneBox.expandByObject(mesh);
+
+    // Node dots at column bases
+    if (m.member_type === 'COLUMN') {
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 8, 8),
+        new THREE.MeshLambertMaterial({ color: 0xFFD600 })
+      );
+      dot.position.copy(p1);
+      dot.userData = { type:'NODE', data: nodeMap[m.start_node] };
+      scene.add(dot);
+    }
+  });
+}
+
+function makeMemberMesh(p1, p2, w, color) {
+  const dir = new THREE.Vector3().subVectors(p2, p1);
+  const len = dir.length();
+  if (len < 0.01) return null;
+  const geo = new THREE.BoxGeometry(w, w, len);
+  const mat = new THREE.MeshLambertMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5));
+  mesh.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1), dir.clone().normalize()
+  );
+  return mesh;
+}
+
+// ─── RENDER EQUIPMENT ────────────────────────────────────────────
+function renderEquipment(eqList) {
+  eqList.forEach(eq => {
+    const color = EQ_COLORS[eq.type] ?? EQ_COLORS.DEFAULT;
+    const mesh = buildEqMesh(eq, color);
+    if (!mesh) return;
+    // Position: EPC coords → Three.js (Y=up = elevation)
+    const px = (eq.pos_x  || 0) * S;
+    const py = (eq.elevation || eq.pos_y || 0) * S;
+    const pz = (eq.pos_z  || 0) * S;
+    mesh.position.set(px, py, pz);
+    mesh.userData = { id: eq.id, type: 'EQUIPMENT', data: eq };
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    allMeshes.push({ mesh, id: `eq-${eq.id}`, type: 'EQUIPMENT', data: eq });
+    sceneBox.expandByObject(mesh);
+
+    // Tag label
+    if (labelsOn) {
+      const sp = makeSprite(eq.tag, colorHex(color), 2);
+      const bb = new THREE.Box3().setFromObject(mesh);
+      sp.position.set(px, bb.max.y + 0.8, pz);
+      sp.userData = { linkedEqId: eq.id };
+      labelGroup.add(sp);
+    }
+  });
+}
+
+function buildEqMesh(eq, color) {
+  const mat = new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.88 });
+  const d = (eq.diameter_mm || 1000) * S;
+  const r = d / 2;
+  let geo;
+
+  const type = eq.type || 'DEFAULT';
+
+  if (type === 'TANK') {
+    // Vertical cylinder
+    const h = (eq.height_mm || eq.diameter_mm || 3000) * S;
+    geo = new THREE.CylinderGeometry(r, r, h, 32);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = h / 2;  // offset so base is at elevation
+    // Wrap in pivot group
+    return wrapMesh(mesh);
+  }
+  if (type === 'REACTOR' || (type === 'VESSEL' && eq.orientation === 'V')) {
+    const h = (eq.height_mm || 5000) * S;
+    geo = new THREE.CylinderGeometry(r, r, h, 24);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = h / 2;
+    return wrapMesh(mesh);
+  }
+  if (type === 'VESSEL' || type === 'DRUM' || type === 'EXCHANGER') {
+    // Horizontal cylinder / box
+    const L = (eq.length_mm || 3000) * S;
+    geo = new THREE.CylinderGeometry(r, r, L, 24);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.z = Math.PI / 2;
+    mesh.position.y = r;
+    return wrapMesh(mesh);
+  }
+  if (type === 'PUMP' || type === 'COMPRESSOR' || type === 'BLOWER') {
+    const L = (eq.length_mm || 1800) * S;
+    const H = (eq.height_mm || 900) * S;
+    const W = (eq.diameter_mm || 700) * S;
+    geo = new THREE.BoxGeometry(L, H, W);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = H / 2;
+    return wrapMesh(mesh);
+  }
+  // Generic box
+  const L = Math.max((eq.length_mm || eq.diameter_mm || 2000) * S, 0.5);
+  const H = Math.max((eq.height_mm || eq.diameter_mm || 1500) * S, 0.4);
+  const W = Math.max((eq.diameter_mm || 1000) * S, 0.4);
+  geo = new THREE.BoxGeometry(L, H, W);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = H / 2;
+  return wrapMesh(mesh);
+}
+
+function wrapMesh(mesh) {
+  const g = new THREE.Group();
+  g.add(mesh);
+  return g;
+}
+
+// ─── NOZZLE FORCE ARROWS ────────────────────────────────────────
+function renderNozzleForces(nozzles, eqList) {
+  const eqMap = {};
+  eqList.forEach(e => { eqMap[e.id] = e; });
+
+  nozzles.forEach(nz => {
+    const eq = nz._eq || eqMap[nz.equipment_id];
+    if (!eq) return;
+    const fx = nz.force_fx || 0, fy = nz.force_fy || 0, fz = nz.force_fz || 0;
+    const fmag = Math.sqrt(fx*fx + fy*fy + fz*fz);
+    if (fmag < 100) return;  // skip negligible
+
+    const origin = new THREE.Vector3(
+      ((eq.pos_x||0) + (nz.pos_x||0)) * S,
+      ((eq.elevation||0) + (nz.pos_y||0)) * S,
+      ((eq.pos_z||0) + (nz.pos_z||0)) * S
+    );
+    const dir    = new THREE.Vector3(fx, fy, fz).normalize();
+    const len    = Math.min(Math.max(fmag / 20000, 0.5), 5);
+    const arrow  = new THREE.ArrowHelper(dir, origin, len, 0xff4444, len * 0.25, len * 0.15);
+    arrow.userData = { type: 'NOZZLE', data: nz };
+    nozzleGroup.add(arrow);
+  });
+}
+
+// ─── SELECTION / PICKING ─────────────────────────────────────────
+let _pointerMoved = false;
+function onPointerDown(e) {
+  _pointerMoved = false;
+  const tmp = (ev) => {
+    if(Math.abs(ev.clientX-e.clientX)>4||Math.abs(ev.clientY-e.clientY)>4) _pointerMoved=true;
+  };
+  window.addEventListener('pointermove', tmp, {once:false});
+  renderer.domElement.addEventListener('pointerup', () => {
+    window.removeEventListener('pointermove', tmp);
+    if (!_pointerMoved) pick(e);
+  }, {once:true});
+}
+
+function pick(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+  pointer.y =-((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+
+  // Collect all pickable meshes
+  const targets = [];
+  allMeshes.forEach(o => {
+    o.mesh.traverse(c => { if(c.isMesh) targets.push(c); });
+  });
+
+  const hits = raycaster.intersectObjects(targets, true);
+  if (!hits.length) { clearSelection(); return; }
+
+  // Walk up to find our tracked object
+  let obj = hits[0].object;
+  while (obj && !obj.userData?.type) obj = obj.parent;
+  if (!obj || !obj.userData?.type) return;
+
+  selectByUserData(obj.userData);
+}
+
+function selectByUserData(ud) {
+  clearSelection();
+  // Find matching mesh entry
+  const entry = allMeshes.find(o => {
+    const d = o.mesh.userData;
+    return d.type === ud.type && d.id === ud.id;
+  }) || allMeshes.find(o => {
+    const d = o.mesh.userData;
+    return d.type === ud.type && d.data?.id === ud.data?.id;
+  });
+  if (!entry) return;
+
+  // Highlight
+  selectedMesh = entry.mesh;
+  entry.mesh.traverse(c => {
+    if (c.isMesh) {
+      c._origColor = c.material.color.getHex();
+      c.material = c.material.clone();
+      c.material.color.setHex(SEL_COLOR);
+      c.material.emissive?.setHex(0x664400);
+    }
+  });
+
+  showProperties(ud.type, ud.data || entry.data);
+  highlightTreeNode(entry.id);
+  document.getElementById('vpSelected').textContent =
+    `Selected: ${ud.data?.tag || ud.data?.member_tag || ud.data?.node_tag || ''}`;
+}
+
+function clearSelection() {
+  if (!selectedMesh) return;
+  selectedMesh.traverse(c => {
+    if (c.isMesh && c._origColor !== undefined) {
+      c.material = c.material.clone();
+      c.material.color.setHex(c._origColor);
+      c.material.emissive?.setHex(0);
+    }
+  });
+  selectedMesh = null;
+  document.getElementById('vpSelected').textContent = '';
+}
+
+// ─── MOUSE MOVE — cursor coordinates ────────────────────────────
+function onMouseMove(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const nx = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+  const ny =-((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  // Project onto Y=0 plane
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+  const pt = new THREE.Vector3();
+  ray.ray.intersectPlane(plane, pt);
+  if (pt) {
+    document.getElementById('vpCursor').textContent =
+      `X:${(pt.x/S).toFixed(0)}  Z:${(pt.z/S).toFixed(0)} mm`;
+  }
+}
+
+// ─── PROPERTY INSPECTOR ──────────────────────────────────────────
+function showProperties(type, data) {
+  if (!data) return;
+  document.getElementById('propSelTag').textContent =
+    data.tag || data.member_tag || data.node_tag || type;
+
+  let html = '';
+
+  if (type === 'EQUIPMENT') {
+    html += propGroup('Identification', [
+      ['Tag',          data.tag,         true],
+      ['Type',         data.type],
+      ['Description',  data.description],
+      ['Support',      data.support_type],
+    ]);
+    html += propGroup('Geometry', [
+      ['Orientation',  data.orientation === 'V' ? 'Vertical' : 'Horizontal'],
+      ['Diameter',     fmm(data.diameter_mm)],
+      ['Length',       fmm(data.length_mm)],
+      ['Height',       fmm(data.height_mm)],
+    ]);
+    html += propGroup('Weights', [
+      ['Empty',      fkg(data.weight_empty)],
+      ['Operating',  fkg(data.weight_operating), true],
+      ['Hydrotest',  fkg(data.weight_test)],
+    ]);
+    html += propGroup('Position (mm)', [
+      ['Pos X', fmt(data.pos_x,0)],
+      ['Pos Z', fmt(data.pos_z,0)],
+      ['Elevation', fmt(data.elevation,0)],
+      ['Tier Level', data.tier_level],
+      ['Bay No.', data.bay_number],
+    ]);
+    html += propGroup('Centre of Gravity (mm)', [
+      ['CoG X', fmt(data.cog_x,0)],
+      ['CoG Y', fmt(data.cog_y,0)],
+      ['CoG Z', fmt(data.cog_z,0)],
+    ]);
+  }
+
+  else if (type === 'MEMBER') {
+    html += propGroup('Member', [
+      ['Tag',       data.member_tag,   true],
+      ['Type',      data.member_type],
+      ['Section',   data.section_name || data.designation || '—', true],
+      ['Material',  data.material_name || '—'],
+    ]);
+    html += propGroup('Geometry', [
+      ['Length',      fmm(data.length_mm)],
+      ['Unbr. Length',fmm(data.unbraced_length)],
+      ['K-factor',    fmt(data.k_factor,2)],
+      ['Start Node',  data.start_node],
+      ['End Node',    data.end_node],
+    ]);
+    html += propGroup('Section Properties', [
+      ['A  (mm²)',    fmt(data.area,0)],
+      ['Ix (mm⁴×10⁶)',fmt(data.ix/1e6,1)],
+      ['Sx (mm³×10³)',fmt(data.sx/1e3,1)],
+      ['Zx (mm³×10³)',fmt(data.zx/1e3,1)],
+      ['Weight',      data.weight_per_m ? data.weight_per_m.toFixed(1)+' kg/m' : '—'],
+    ]);
+  }
+
+  else if (type === 'NODE') {
+    html += propGroup('Node', [
+      ['Tag',      data.node_tag,    true],
+      ['Type',     data.node_type],
+      ['Support',  data.is_support ? `YES — ${data.support_type}` : 'No'],
+    ]);
+    html += propGroup('Coordinates (mm)', [
+      ['X', fmt(data.x,1)],
+      ['Y (elev.)', fmt(data.y,1)],
+      ['Z', fmt(data.z,1)],
+    ]);
+  }
+
+  document.getElementById('propPanel').innerHTML = html || '<div class="p-2 text-muted" style="font-size:11px">No data</div>';
+}
+
+function propGroup(title, rows) {
+  const rowsHtml = rows.map(([k, v, hi]) =>
+    `<div class="prop-row">
+       <span class="prop-key">${k}</span>
+       <span class="prop-val${hi?' hi':''}">${v ?? '—'}</span>
+     </div>`
+  ).join('');
+  return `<div class="prop-group">
+    <div class="prop-group-title">${title}</div>
+    ${rowsHtml}
+  </div>`;
+}
+
+function fmm(v) { return v ? v.toLocaleString() + ' mm' : '—'; }
+function fkg(v) { return v ? v.toLocaleString() + ' kg' : '—'; }
+function fmt(v, d=1) { if(v===null||v===undefined) return '—'; return (+v).toFixed(d); }
+
+// ─── MODEL TREE ──────────────────────────────────────────────────
+function buildModelTree(eqList, memberList, nodeList) {
+  // Group equipment by type
+  const eqGroups = {};
+  eqList.forEach(e => {
+    const t = e.type || 'OTHER';
+    (eqGroups[t] = eqGroups[t] || []).push(e);
+  });
+  // Group members by type
+  const memGroups = {};
+  memberList.forEach(m => {
+    const t = m.member_type || 'OTHER';
+    (memGroups[t] = memGroups[t] || []).push(m);
+  });
+  const supportNodes = nodeList.filter(n => n.is_support);
+
+  let html = '';
+
+  // Equipment root
+  html += treeFolder('bi-cpu', '#e8a020', `Equipment`, eqList.length, (() => {
+    let inner = '';
+    Object.entries(eqGroups).sort().forEach(([type, items]) => {
+      const ic = eqTypeIcon(type);
+      const co = colorHex(EQ_COLORS[type] || EQ_COLORS.DEFAULT);
+      inner += treeFolder(ic, co, type, items.length, items.map(e =>
+        treeLeaf(`eq-${e.id}`, ic, co, e.tag, e.description || '', 'EQUIPMENT', e)
+      ).join(''));
+    });
+    return inner;
+  })());
+
+  // Structure root
+  html += treeFolder('bi-grid-3x3', '#4a9aff', 'Structure', memberList.length, (() => {
+    let inner = '';
+    Object.entries(memGroups).sort().forEach(([type, items]) => {
+      const co = colorHex(MEM_COLORS[type] || MEM_COLORS.BEAM);
+      inner += treeFolder('bi-dash-lg', co, type+'S', items.length, items.map(m =>
+        treeLeaf(`mem-${m.id}`, 'bi-dash-lg', co,
+          m.member_tag, `${m.section_name||'?'} · ${fmt(m.length_mm,0)}mm`,
+          'MEMBER', m)
+      ).join(''));
+    });
+    // Support nodes
+    inner += treeFolder('bi-pin-angle', '#FFD600', 'Support Nodes', supportNodes.length,
+      supportNodes.map(n =>
+        treeLeaf(`nd-${n.id}`, 'bi-pin', '#FFD600', n.node_tag,
+          `(${fmt(n.x,0)}, ${fmt(n.y,0)}, ${fmt(n.z,0)})`, 'NODE', n)
+      ).join('')
+    );
+    return inner;
+  })());
+
+  document.getElementById('modelTree').innerHTML = html;
+
+  // Bind clicks on leaves
+  document.querySelectorAll('.tree-row[data-nid]').forEach(row => {
+    row.addEventListener('click', e => {
+      e.stopPropagation();
+      const type = row.dataset.type;
+      const data = JSON.parse(decodeURIComponent(row.dataset.obj));
+      selectByUserData({ type, id: row.dataset.nid, data });
+    });
+  });
+  // Bind folder toggles
+  document.querySelectorAll('.tree-row[data-folder]').forEach(row => {
+    row.addEventListener('click', e => {
+      e.stopPropagation();
+      const ch = row.nextElementSibling;
+      if (!ch) return;
+      const open = ch.style.display !== 'none';
+      ch.style.display = open ? 'none' : '';
+      row.querySelector('.tree-toggle').textContent = open ? '▶' : '▼';
+    });
+  });
+}
+
+function treeFolder(icon, color, label, count, childrenHtml) {
+  return `<div class="tree-node">
+    <div class="tree-row" data-folder="1">
+      <span class="tree-toggle" style="color:${color}">▼</span>
+      <i class="bi ${icon} tree-icon" style="color:${color}"></i>
+      <span class="tree-label">${label}</span>
+      <span class="tree-count">${count}</span>
+    </div>
+    <div class="tree-children">${childrenHtml}</div>
+  </div>`;
+}
+
+function treeLeaf(nid, icon, color, label, sub, type, dataObj) {
+  const enc = encodeURIComponent(JSON.stringify(dataObj));
+  return `<div class="tree-node">
+    <div class="tree-row" data-nid="${nid}" data-type="${type}" data-obj="${enc}" id="tnode-${nid}">
+      <span class="tree-toggle"></span>
+      <i class="bi ${icon} tree-icon" style="color:${color}"></i>
+      <span class="tree-label" title="${label} — ${sub}">${label}</span>
+      <span class="tree-count" style="color:${color};font-size:9px">${sub.slice(0,16)}</span>
+    </div>
+  </div>`;
+}
+
+function highlightTreeNode(nid) {
+  document.querySelectorAll('.tree-row.active').forEach(r => r.classList.remove('active'));
+  const el = document.getElementById(`tnode-${nid}`);
+  if (el) {
+    el.classList.add('active');
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+function eqTypeIcon(type) {
+  const m = { TANK:'bi-bucket', VESSEL:'bi-cylinder', DRUM:'bi-bucket-fill',
+    REACTOR:'bi-radioactive', PUMP:'bi-droplet', COMPRESSOR:'bi-wind',
+    BLOWER:'bi-fan', EXCHANGER:'bi-thermometer-half', COLUMN:'bi-align-center' };
+  return m[type] || 'bi-cpu';
+}
+
+// ─── CAMERA / VIEW ───────────────────────────────────────────────
+function fitView() {
+  if (sceneBox.isEmpty()) { camera.position.set(40,25,50); controls.update(); return; }
+  const center = new THREE.Vector3();
+  sceneBox.getCenter(center);
+  const size = sceneBox.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const dist   = maxDim * 1.8;
+  camera.position.set(center.x + dist*0.6, center.y + dist*0.5, center.z + dist*0.8);
+  camera.lookAt(center);
+  controls.target.copy(center);
+  controls.update();
+}
+
+function resetView() {
+  camera.position.set(40, 25, 50);
+  camera.lookAt(0, 5, 0);
+  controls.target.set(0, 5, 0);
+  controls.update();
+}
+
+function setView(mode) {
+  if (sceneBox.isEmpty()) return;
+  const center = new THREE.Vector3(); sceneBox.getCenter(center);
+  const size   = sceneBox.getSize(new THREE.Vector3());
+  const d = Math.max(size.x, size.y, size.z) * 1.5;
+  const views = {
+    top:   [center.x, center.y + d, center.z,  center.x, center.y, center.z],
+    front: [center.x, center.y,     center.z + d, center.x, center.y, center.z],
+    side:  [center.x + d, center.y, center.z, center.x, center.y, center.z],
+    iso:   [center.x+d*0.6, center.y+d*0.5, center.z+d*0.8, center.x, center.y, center.z],
+  };
+  const v = views[mode];
+  if (!v) return;
+  camera.position.set(v[0],v[1],v[2]);
+  camera.lookAt(v[3],v[4],v[5]);
+  controls.target.set(v[3],v[4],v[5]);
+  controls.update();
+}
+
+function toggleWire() {
+  wireOn = !wireOn;
+  allMeshes.forEach(o => {
+    o.mesh.traverse(c => {
+      if (c.isMesh && c._origColor === undefined) {
+        c.material.wireframe = wireOn;
+      }
+    });
+  });
+  document.getElementById('btnWire').classList.toggle('active', wireOn);
+}
+
+function toggleLabels() {
+  labelsOn = !labelsOn;
+  labelGroup.visible = labelsOn;
+  document.getElementById('btnLabels').classList.toggle('active', labelsOn);
+}
+
+function toggleNozzles() {
+  nozzlesOn = !nozzlesOn;
+  nozzleGroup.visible = nozzlesOn;
+  document.getElementById('btnNozzles').classList.toggle('active', nozzlesOn);
+}
+
+// ─── UTILS ──────────────────────────────────────────────────────
+function colorHex(num) {
+  return '#' + num.toString(16).padStart(6, '0');
+}
+
+// ─── PUBLIC API (window.v3d) ─────────────────────────────────────
+window.v3d = { fitView, resetView, setView, toggleWire, toggleLabels, toggleNozzles };
+
+window.on3DTabShow = function() {
+  // Small delay so container has layout dimensions
+  setTimeout(() => {
+    if (!sceneReady) initScene();
+    if (window.currentProject) loadModel(window.currentProject);
+  }, 80);
+};
+
+window.refreshViewer = function() {
+  if (window.currentProject) loadModel(window.currentProject);
+};
+
+// Also reload when selectProject is called and 3D tab is already active
+const _origSelect = window.selectProject;
+if (_origSelect) {
+  window.selectProject = async function(pid) {
+    await _origSelect(pid);
+    const tab = document.querySelector('#tab3D');
+    if (tab && tab.classList.contains('active') && pid) {
+      setTimeout(() => loadModel(pid), 200);
+    }
+  };
+}
+</script>
+</body>
+</html>
