@@ -629,3 +629,153 @@ def calculate_reactions(rack, members, nodal_loads_by_case, dist_loads_by_case):
                 reactions[node_tag][lc_name]["ry"] -= end_reaction  # downward = negative Y reaction
 
     return reactions
+
+
+# ─────────────────────────────────────────────────────────────
+# EQUIPMENT SUPPORT MEMBER GENERATION
+# ─────────────────────────────────────────────────────────────
+
+def generate_equipment_support_members(rack, equipment_list, nodes_dict, start_idx=500):
+    """
+    Generate secondary structural members to physically support each piece of equipment.
+
+    Support patterns:
+      SADDLE  (H vessel / exchanger)  → 2 transverse saddle beams at 0.2L and 0.8L
+      SKID    (pump / compressor)     → 2 longitudinal platform beams spanning full bay
+      LEG     (V vessel / reactor / tall drum) → 4 leg connection beams at PCD
+      LUGA    (lug-mounted vertical)  → 2 trunnion cross-beams at lug elevation
+      TRUNNION                        → same as LUGA
+      Default                         → 1 transverse support beam at bay centre
+
+    Returns: (new_members, new_nodes)
+    """
+    members   = []
+    new_nodes = []
+    idx = start_idx
+
+    raw_th = json.loads(rack.get("tier_heights", "[4000]"))
+    tier_heights = [0] + raw_th          # index 0 = grade, 1 = tier-1, …
+    bay_span  = rack.get("bay_span",  9000)
+    width     = rack.get("width_of_rack", 6000)
+    n_bays    = rack.get("number_of_bays", 3)
+    pid       = rack.get("project_id")
+    rid       = rack.get("id")
+
+    def _node(tag, x, y, z, ntype="SUPPORT_NODE"):
+        n = {"project_id": pid, "rack_id": rid, "node_tag": tag,
+             "x": x, "y": y, "z": z, "node_type": ntype, "is_support": 0}
+        new_nodes.append(n)
+        nodes_dict[tag] = n
+        return tag
+
+    def _mem(tag, start, end, length, mtype="SUPPORT_BEAM", notes=""):
+        members.append({
+            "project_id": pid, "rack_id": rid,
+            "member_tag": tag, "member_type": mtype,
+            "start_node": start, "end_node": end,
+            "length_mm": max(int(length), 100),
+            "unbraced_length": max(int(length), 100),
+            "k_factor": 1.0, "notes": notes,
+        })
+
+    for eq in equipment_list:
+        tier    = max(1, int(eq.get("tier_level", 1) or 1))
+        bay     = max(1, int(eq.get("bay_number",  1) or 1))
+        support = (eq.get("support_type") or "SKID").upper()
+        orient  = (eq.get("orientation")  or "H").upper()
+        tag     = eq.get("tag", "EQ")
+
+        if tier >= len(tier_heights):
+            continue
+
+        y_tier   = tier_heights[tier]
+        bay_z0   = (bay - 1) * bay_span       # start Z of bay
+        bay_zctr = bay_z0 + bay_span / 2
+        L_eq     = float(eq.get("length_mm",   3000) or 3000)
+        D_eq     = float(eq.get("diameter_mm", 1000) or 1000)
+
+        nA  = nodes_dict.get(f"A{bay}T{tier}")
+        nB  = nodes_dict.get(f"B{bay}T{tier}")
+        if not nA or not nB:
+            continue
+
+        xA = float(nA["x"])
+        xB = float(nB["x"])
+
+        # ── SADDLE-SUPPORTED HORIZONTAL VESSEL / EXCHANGER ──────────
+        if support == "SADDLE" or (support == "SKID" and orient == "H"
+                                    and L_eq > 2000):
+            for i, frac in enumerate([0.2, 0.8]):
+                saddle_z = bay_z0 + min(frac * L_eq, bay_span - 300)
+                tA = _node(f"SD{idx}A", xA, y_tier, saddle_z, "SADDLE_NODE")
+                tB = _node(f"SD{idx}B", xB, y_tier, saddle_z, "SADDLE_NODE")
+                _mem(f"SADDLE-{idx:03d}", tA, tB, width,
+                     notes=f"Saddle S{i+1} for {tag}")
+                idx += 1
+
+        # ── SKID / BASEPLATE (pumps, compressors, blowers) ──────────
+        elif support in ("SKID", "CLIP") and orient == "H":
+            # Two longitudinal platform beams at 30% and 70% of rack width
+            nA2 = nodes_dict.get(f"A{bay+1}T{tier}")
+            nB2 = nodes_dict.get(f"B{bay+1}T{tier}")
+            if nA2 and nB2:
+                for j, xf in enumerate([0.3, 0.7]):
+                    px = xA + width * xf
+                    tS = _node(f"SK{idx}S", px, y_tier, bay_z0,       "SKID_NODE")
+                    tE = _node(f"SK{idx}E", px, y_tier, bay_z0 + bay_span, "SKID_NODE")
+                    _mem(f"SKID-{idx:03d}", tS, tE, bay_span,
+                         notes=f"Skid platform P{j+1} for {tag}")
+                    idx += 1
+                # Cross-tie at mid-span
+                tM1 = _node(f"SK{idx}M1", xA + width*0.3, y_tier, bay_zctr, "SKID_NODE")
+                tM2 = _node(f"SK{idx}M2", xA + width*0.7, y_tier, bay_zctr, "SKID_NODE")
+                _mem(f"SKID-{idx:03d}", tM1, tM2, width * 0.4,
+                     notes=f"Skid cross-tie for {tag}")
+                idx += 1
+            else:
+                # Single bay skid
+                tS = _node(f"SK{idx}S", xA + width*0.5, y_tier, bay_z0,          "SKID_NODE")
+                tE = _node(f"SK{idx}E", xA + width*0.5, y_tier, bay_z0 + bay_span, "SKID_NODE")
+                _mem(f"SKID-{idx:03d}", tS, tE, bay_span,
+                     notes=f"Skid centreline beam for {tag}")
+                idx += 1
+
+        # ── LEG / LUGA / TRUNNION (vertical vessels, reactors, tanks) ─
+        elif support in ("LEG", "LUGA", "TRUNNION") or orient == "V":
+            leg_r = max(D_eq * 0.35, 300)   # leg PCD ≈ 70% of vessel radius
+            xctr  = xA + width / 2
+            corners = [(-1, -1), (+1, -1), (+1, +1), (-1, +1)]
+            for li, (sx, sz) in enumerate(corners):
+                lx = xctr + sx * leg_r * 0.707
+                lz = bay_zctr + sz * leg_r * 0.707
+                # Nearest main rack node to connect to
+                nearest = f"A{bay}T{tier}" if lx < xctr else f"B{bay}T{tier}"
+                nR = nodes_dict[nearest]
+                tL = _node(f"LG{idx}L{li}", lx, y_tier, lz, "LEG_NODE")
+                dist = math.sqrt((lx - float(nR["x"]))**2 +
+                                 (lz - float(nR["z"]))**2)
+                _mem(f"LEG-{idx:03d}", nearest, tL, dist,
+                     notes=f"Leg L{li+1} for {tag}")
+                idx += 1
+            # Leg cap cross-beams (ring connecting legs)
+            for li in range(4):
+                n1_tag = f"LG{idx - 4 + li}L{li}"
+                n2_tag = f"LG{idx - 4 + (li+1)%4}L{(li+1)%4}"
+                if n1_tag in nodes_dict and n2_tag in nodes_dict:
+                    n1c = nodes_dict[n1_tag]
+                    n2c = nodes_dict[n2_tag]
+                    d = math.sqrt((float(n1c["x"])-float(n2c["x"]))**2 +
+                                  (float(n1c["z"])-float(n2c["z"]))**2)
+                    _mem(f"LCAP-{idx:03d}", n1_tag, n2_tag, d,
+                         notes=f"Leg cap ring for {tag}")
+                    idx += 1
+
+        # ── GENERIC FALLBACK ─────────────────────────────────────────
+        else:
+            tA = _node(f"SP{idx}A", xA, y_tier, bay_zctr, "SUPPORT_NODE")
+            tB = _node(f"SP{idx}B", xB, y_tier, bay_zctr, "SUPPORT_NODE")
+            _mem(f"SUP-{idx:03d}", tA, tB, width,
+                 notes=f"Support beam for {tag}")
+            idx += 1
+
+    return members, new_nodes

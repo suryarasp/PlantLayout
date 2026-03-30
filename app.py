@@ -11,7 +11,7 @@ from calculations.structural import (
     check_member, generate_rack_nodes, generate_rack_members,
     auto_size_rack, generate_wind_loads, generate_seismic_loads,
     calculate_reactions, flexural_capacity, shear_capacity,
-    axial_compression_capacity
+    axial_compression_capacity, generate_equipment_support_members
 )
 from calculations.foundation import design_spread_footing
 from config import LRFD_COMBINATIONS, ASD_COMBINATIONS, AISC_SECTIONS
@@ -548,16 +548,50 @@ def generate_grid(rid):
              m.get("unbraced_length", m["length_mm"]),
              m.get("k_factor",1.0), sid, mid))
 
+    # ── Equipment support members ──────────────────────────────────
+    eq_rows = conn.execute(
+        "SELECT * FROM equipment WHERE project_id=?", (pid,)
+    ).fetchall()
+    equipment_list = rows_to_list(eq_rows)
+
+    if equipment_list:
+        sup_members, sup_nodes = generate_equipment_support_members(
+            rack, equipment_list, nodes_dict, start_idx=500
+        )
+        for n in sup_nodes:
+            conn.execute(
+                """INSERT INTO nodes(project_id,rack_id,node_tag,x,y,z,node_type,is_support,support_type)
+                   VALUES(?,?,?,?,?,?,?,?,?)""",
+                (n["project_id"], n["rack_id"], n["node_tag"],
+                 n["x"], n["y"], n["z"], n["node_type"], n["is_support"], None)
+            )
+        for m in sup_members:
+            conn.execute(
+                """INSERT INTO members(project_id,rack_id,member_tag,member_type,
+                   start_node,end_node,length_mm,unbraced_length,k_factor,section_id,material_id)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                (m["project_id"], m["rack_id"], m["member_tag"], m["member_type"],
+                 m["start_node"], m["end_node"], m["length_mm"],
+                 m.get("unbraced_length", m["length_mm"]),
+                 m.get("k_factor", 1.0), sid, mid)
+            )
+        n_sup_nodes   = len(sup_nodes)
+        n_sup_members = len(sup_members)
+    else:
+        n_sup_nodes = n_sup_members = 0
+
     conn.commit()
 
-    n_nodes   = len(nodes)
-    n_members = len(members)
+    n_nodes   = len(nodes) + n_sup_nodes
+    n_members = len(members) + n_sup_members
     conn.close()
 
     return jsonify({
-        "message": f"Generated {n_nodes} nodes and {n_members} members",
+        "message": f"Generated {n_nodes} nodes and {n_members} members "
+                   f"({n_sup_members} equipment support members)",
         "nodes": n_nodes,
         "members": n_members,
+        "support_members": n_sup_members,
     })
 
 

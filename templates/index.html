@@ -123,6 +123,7 @@ hr{border-color:var(--border)}
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabResults"><i class="bi bi-bar-chart me-1"></i>Results</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabImport"><i class="bi bi-upload me-1"></i>Import/Export</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab3D" id="tab3DLink" onclick="on3DTabShow()"><i class="bi bi-box me-1"></i>3D View</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabManual"><i class="bi bi-book me-1"></i>Manual</a></li>
 </ul>
 
 <div class="tab-content p-3">
@@ -198,6 +199,7 @@ hr{border-color:var(--border)}
   <div class="d-flex gap-2">
     <button class="btn btn-primary btn-sm" onclick="showModal('modalEquipment')"><i class="bi bi-plus-lg me-1"></i>Add Equipment</button>
     <button class="btn btn-outline-secondary btn-sm" onclick="downloadTemplate('equipment-csv')"><i class="bi bi-download me-1"></i>CSV Template</button>
+    <button class="btn btn-outline-warning btn-sm" onclick="openNozzleImport()" title="Import nozzle Fx/Fy/Fz/Mx/My/Mz from piping stress CSV"><i class="bi bi-arrow-down-circle me-1"></i>Import Nozzle Loads CSV</button>
   </div>
   <span class="text-muted" style="font-size:11px" id="eqCount">0 items</span>
 </div>
@@ -679,6 +681,258 @@ hr{border-color:var(--border)}
 
 </div>
 </div><!-- /tab3D -->
+
+<!-- ═══ TAB: MANUAL ════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabManual">
+<div class="row g-3">
+  <div class="col-lg-3">
+    <div class="card sticky-top" style="top:1rem">
+      <div class="card-header"><i class="bi bi-list-ul me-1"></i>Contents</div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush" style="font-size:13px">
+          <a href="#man-overview"  class="list-group-item list-group-item-action">1. Overview</a>
+          <a href="#man-workflow"  class="list-group-item list-group-item-action">2. Workflow</a>
+          <a href="#man-project"   class="list-group-item list-group-item-action">3. Project Setup</a>
+          <a href="#man-equipment" class="list-group-item list-group-item-action">4. Equipment</a>
+          <a href="#man-nozzle"    class="list-group-item list-group-item-action">5. Nozzle Loads</a>
+          <a href="#man-loads"     class="list-group-item list-group-item-action">6. Load Cases</a>
+          <a href="#man-structure" class="list-group-item list-group-item-action">7. Structure (Rack)</a>
+          <a href="#man-calculate" class="list-group-item list-group-item-action">8. Calculate</a>
+          <a href="#man-results"   class="list-group-item list-group-item-action">9. Results</a>
+          <a href="#man-import"    class="list-group-item list-group-item-action">10. Import / Export</a>
+          <a href="#man-3d"        class="list-group-item list-group-item-action">11. 3D Viewer</a>
+          <a href="#man-codes"     class="list-group-item list-group-item-action">12. Code References</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body" style="font-size:14px;line-height:1.7;max-width:820px">
+
+        <h4 id="man-overview" class="mt-1" style="color:var(--accent)">1. Overview</h4>
+        <p>EPC Structural Design Software is a web-based pipe-rack and equipment support
+        design tool that follows the AISC 360-22 (steel) and ACI 318-19 (concrete) codes
+        with seismic and wind loading per ASCE 7-22. It is analogous in scope to AVEVA E3D
+        or Intergraph S3D but runs locally with no licence server.</p>
+        <ul>
+          <li><strong>Backend</strong> — Python / Flask + SQLite (WAL mode)</li>
+          <li><strong>Frontend</strong> — Single-page HTML5 with Bootstrap 5 and Three.js WebGL</li>
+          <li><strong>Units</strong> — Internal: N and mm. User input / reports: kN, kN·m, mm</li>
+        </ul>
+
+        <hr>
+        <h4 id="man-workflow" style="color:var(--accent)">2. Recommended Workflow</h4>
+        <ol>
+          <li>Create / open a <strong>Project</strong> and set wind, seismic and soil parameters.</li>
+          <li>Import or add <strong>Equipment</strong> (tanks, vessels, reactors, pumps …).</li>
+          <li>Import <strong>Nozzle loads</strong> from the piping stress package (Fx/Fy/Fz/Mx/My/Mz).</li>
+          <li>Define <strong>Structure</strong> — rack geometry (bays, tiers, widths) then click
+              <em>Generate Grid</em> to auto-create nodes, members, and equipment support framing.</li>
+          <li>Review / add <strong>Load cases</strong> and combinations.</li>
+          <li>Open <strong>Calculate</strong> tab and run Section Checks, Reactions and Foundation Design.</li>
+          <li>Review <strong>Results</strong> tables and export CSV.</li>
+          <li>Inspect the model in the <strong>3D View</strong>.</li>
+        </ol>
+
+        <hr>
+        <h4 id="man-project" style="color:var(--accent)">3. Project Setup</h4>
+        <table class="table table-sm table-bordered">
+          <thead class="table-dark"><tr><th>Parameter</th><th>Description</th><th>Typical Range</th></tr></thead>
+          <tbody>
+            <tr><td>Basic Wind Speed</td><td>3-second gust speed at 10 m (ASCE 7-22 §26.5)</td><td>38–67 m/s</td></tr>
+            <tr><td>Exposure Category</td><td>Site roughness (B=suburban, C=open, D=coastal)</td><td>B / C</td></tr>
+            <tr><td>SDS</td><td>Design spectral response acceleration, short period</td><td>0.1–2.0</td></tr>
+            <tr><td>SD1</td><td>Design spectral response acceleration, 1-second period</td><td>0.05–1.0</td></tr>
+            <tr><td>R</td><td>Response modification factor for steel moment frames</td><td>3.0 (braced) – 8.0 (moment)</td></tr>
+            <tr><td>Ie</td><td>Importance factor (1.0 normal, 1.25 high, 1.5 essential)</td><td>1.0</td></tr>
+            <tr><td>Soil Bearing Pressure</td><td>Allowable net bearing pressure for footing sizing</td><td>100–300 kPa</td></tr>
+          </tbody>
+        </table>
+
+        <hr>
+        <h4 id="man-equipment" style="color:var(--accent)">4. Equipment</h4>
+        <p>Equipment items carry operating weight, empty weight, test weight, centre of gravity,
+        and physical dimensions used for both structural load calculation and 3D visualisation.</p>
+        <h6>Adding equipment manually</h6>
+        <p>Click <strong>Add Equipment</strong> on the Equipment tab. Required fields: Tag, Type,
+        Operating Weight (kg). Provide Tier and Bay to locate the equipment on the rack; the
+        3D view then positions it automatically based on rack geometry.</p>
+        <h6>CSV import</h6>
+        <p>Download <em>equipment_sample.csv</em> (Import/Export tab) as a template. Key columns:</p>
+        <table class="table table-sm table-bordered" style="font-size:12px">
+          <thead class="table-dark"><tr><th>Column</th><th>Unit</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>TAG</td><td>—</td><td>Unique identifier e.g. T-101</td></tr>
+            <tr><td>TYPE</td><td>—</td><td>TANK, VESSEL, DRUM, REACTOR, PUMP, COMPRESSOR, BLOWER, EXCHANGER</td></tr>
+            <tr><td>WEIGHT_OP_KG</td><td>kg</td><td>Operating (liquid-filled) weight</td></tr>
+            <tr><td>WEIGHT_EW_KG</td><td>kg</td><td>Empty weight</td></tr>
+            <tr><td>WEIGHT_TEST_KG</td><td>kg</td><td>Hydro-test weight</td></tr>
+            <tr><td>DIAMETER_MM / LENGTH_MM / HEIGHT_MM</td><td>mm</td><td>Outer dimensions</td></tr>
+            <tr><td>ORIENTATION</td><td>—</td><td>H = horizontal, V = vertical</td></tr>
+            <tr><td>TIER_LEVEL</td><td>integer</td><td>1 = bottom tier, 2 = second tier …</td></tr>
+            <tr><td>BAY_NUMBER</td><td>integer</td><td>1 = first bay from origin</td></tr>
+            <tr><td>SUPPORT_TYPE</td><td>—</td><td>SADDLE, SKID, LEG, LUGA, TRUNNION</td></tr>
+          </tbody>
+        </table>
+
+        <hr>
+        <h4 id="man-nozzle" style="color:var(--accent)">5. Nozzle Loads</h4>
+        <p>Nozzle loads from the piping stress analysis (Caesar II, AutoPIPE, etc.) are entered
+        per nozzle and are automatically summed and applied to the rack node at the equipment's
+        tier / bay location under the <strong>OL (Operating Load)</strong> load case.</p>
+        <h6>Import nozzle loads from CSV</h6>
+        <ol>
+          <li>On the <strong>Equipment tab</strong> click <strong style="color:var(--accent)">Import Nozzle Loads CSV</strong>,
+              or go to <strong>Import/Export</strong> and select <em>Nozzle Loads</em>.</li>
+          <li>Ensure all EQUIPMENT_TAG values match existing equipment in the project.</li>
+          <li>Upload the file and click Import. The tool reports how many nodal loads were generated.</li>
+        </ol>
+        <h6>CSV columns</h6>
+        <table class="table table-sm table-bordered" style="font-size:12px">
+          <thead class="table-dark"><tr><th>Column</th><th>Unit</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>EQUIPMENT_TAG</td><td>—</td><td>Must match an existing equipment tag</td></tr>
+            <tr><td>NOZZLE_TAG</td><td>—</td><td>e.g. N1, N2</td></tr>
+            <tr><td>SERVICE</td><td>—</td><td>Descriptive (INLET, OUTLET, VENT …)</td></tr>
+            <tr><td>SIZE_DN</td><td>mm</td><td>Nominal bore</td></tr>
+            <tr><td>RATING</td><td>—</td><td>Pressure class e.g. 150#, 300#</td></tr>
+            <tr><td>POS_X / POS_Y / POS_Z</td><td>mm</td><td>Nozzle position relative to equipment origin</td></tr>
+            <tr><td>DIRECTION</td><td>—</td><td>+X, -X, +Y, -Y, +Z, -Z</td></tr>
+            <tr><td>FX_N / FY_N / FZ_N</td><td>N</td><td>Sustained force components from piping</td></tr>
+            <tr><td>MX_NMM / MY_NMM / MZ_NMM</td><td>N·mm</td><td>Sustained moment components</td></tr>
+          </tbody>
+        </table>
+
+        <hr>
+        <h4 id="man-loads" style="color:var(--accent)">6. Load Cases</h4>
+        <p>Ten standard load cases are seeded automatically for each project:</p>
+        <table class="table table-sm table-bordered" style="font-size:12px">
+          <thead class="table-dark"><tr><th>Case</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>DL</td><td>Dead load — self-weight of structure + equipment empty weight</td></tr>
+            <tr><td>LL</td><td>Live load — piping contents, maintenance loads (typically 4.8 kPa pipe deck)</td></tr>
+            <tr><td>WL_X / WL_Z</td><td>Wind loads in X and Z directions (ASCE 7-22 simplified open frame)</td></tr>
+            <tr><td>SL_X / SL_Z</td><td>Seismic ELF forces in X and Z directions</td></tr>
+            <tr><td>TL</td><td>Thermal expansion loads</td></tr>
+            <tr><td>OL</td><td>Operating load — nozzle loads aggregated per rack node</td></tr>
+            <tr><td>TP</td><td>Test pressure load — hydro-test weight</td></tr>
+            <tr><td>FI</td><td>Friction/anchor loads at pipe supports</td></tr>
+          </tbody>
+        </table>
+        <p>Load combinations following ASCE 7-22 LRFD (§2.3) and ASD (§2.4) are auto-generated
+        via <em>Calculate → Generate Combinations</em>.</p>
+
+        <hr>
+        <h4 id="man-structure" style="color:var(--accent)">7. Structure (Pipe Rack)</h4>
+        <h6>Geometry parameters</h6>
+        <table class="table table-sm table-bordered" style="font-size:12px">
+          <thead class="table-dark"><tr><th>Parameter</th><th>Guideline / Typical</th></tr></thead>
+          <tbody>
+            <tr><td>Bay Span</td><td>6 000 – 12 000 mm; preferred 9 000 mm</td></tr>
+            <tr><td>Number of Bays</td><td>2 – 20</td></tr>
+            <tr><td>Rack Width</td><td>3 000 – 9 000 mm; preferred 6 000 mm</td></tr>
+            <tr><td>Bottom Tier Height</td><td>≥ 3 500 mm (minimum headroom per IPS-E-PR-370)</td></tr>
+            <tr><td>Tier Spacing</td><td>≥ 2 500 mm (pipe + valve + insulation clearance)</td></tr>
+            <tr><td>Tier Heights (JSON array)</td><td>e.g. [4000, 7000, 10500] for 3-tier rack</td></tr>
+          </tbody>
+        </table>
+        <h6>Generate Grid</h6>
+        <p>Click <strong>Generate Grid</strong> after defining geometry. The software creates:</p>
+        <ul>
+          <li><strong>Main rack</strong> — columns (A/B lines), transverse beams, longitudinal stringers, X-braces</li>
+          <li><strong>Equipment supports</strong> — saddle beams for horizontal vessels/exchangers,
+              skid frames for pumps/compressors, leg connections for vertical vessels/reactors</li>
+        </ul>
+        <p>All members are assigned default sections (lightest W-section from the database) and
+        A992 material. Use the Structure tab to change individual section assignments before running checks.</p>
+
+        <hr>
+        <h4 id="man-calculate" style="color:var(--accent)">8. Calculate</h4>
+        <table class="table table-sm table-bordered" style="font-size:12px">
+          <thead class="table-dark"><tr><th>Button</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td>Generate Combinations</td><td>Creates ASCE 7-22 LRFD + ASD load combos</td></tr>
+            <tr><td>Auto-size Rack</td><td>Iterates section sizes until all members pass under governing combo</td></tr>
+            <tr><td>Section Checks</td><td>AISC 360-22: flexure (F2+LTB), shear (G2), axial (E3), combined (H1-1)</td></tr>
+            <tr><td>Support Reactions</td><td>Tributary-area method; base shear and overturning at each column</td></tr>
+            <tr><td>Foundation Design</td><td>ACI 318-19 spread footing: bearing, punching shear, one-way shear, flexure, rebar</td></tr>
+          </tbody>
+        </table>
+
+        <hr>
+        <h4 id="man-results" style="color:var(--accent)">9. Results</h4>
+        <p>The Results tab shows three tables:</p>
+        <ul>
+          <li><strong>Member Results</strong> — Unity Check (UC) per member per load combination. UC &gt; 1.0 = FAIL (shown in red).</li>
+          <li><strong>Support Reactions</strong> — Axial (Pz), shear (Vx, Vz), and moment (Mx, Mz) at each column base per load case.</li>
+          <li><strong>Foundation</strong> — Footing dimensions, rebar schedule, and pass/fail for each ACI check.</li>
+        </ul>
+        <p>Click <em>Export Results CSV</em> to download all member checks as a spreadsheet.</p>
+
+        <hr>
+        <h4 id="man-import" style="color:var(--accent)">10. Import / Export</h4>
+        <p>All imports require a project to be selected. Supported import types:</p>
+        <ul>
+          <li><strong>Equipment CSV</strong> — bulk-load equipment list (download sample for format)</li>
+          <li><strong>Nozzle Loads CSV</strong> — nozzle forces/moments from piping stress tool</li>
+        </ul>
+        <p><strong>Export</strong>: Member Results CSV contains tag, section, material, governing combo,
+        Pu/φPn, Mu/φMn, shear UC, axial UC, combined UC and pass/fail status for every member.</p>
+
+        <hr>
+        <h4 id="man-3d" style="color:var(--accent)">11. 3D Viewer</h4>
+        <h6>Navigation</h6>
+        <ul>
+          <li><strong>Rotate</strong> — Left-drag</li>
+          <li><strong>Pan</strong> — Right-drag</li>
+          <li><strong>Zoom</strong> — Scroll wheel or middle-drag</li>
+        </ul>
+        <h6>Toolbar buttons</h6>
+        <ul>
+          <li><strong>Fit All</strong> — zoom to model extents</li>
+          <li><strong>Top / Front / Side / Iso</strong> — standard views</li>
+          <li><strong>Wire</strong> — toggle wireframe mode</li>
+          <li><strong>Labels</strong> — show/hide equipment tags</li>
+          <li><strong>Nozzles</strong> — show/hide nozzle force arrows (scaled to force magnitude)</li>
+        </ul>
+        <h6>Colour coding</h6>
+        <table class="table table-sm table-bordered" style="font-size:12px">
+          <thead class="table-dark"><tr><th>Colour</th><th>Represents</th></tr></thead>
+          <tbody>
+            <tr><td><span style="background:#1565C0;color:#fff;padding:1px 8px">Blue</span></td><td>Transverse beams</td></tr>
+            <tr><td><span style="background:#37474F;color:#fff;padding:1px 8px">Dark grey</span></td><td>Columns</td></tr>
+            <tr><td><span style="background:#B71C1C;color:#fff;padding:1px 8px">Dark red</span></td><td>Braces</td></tr>
+            <tr><td><span style="background:#00695C;color:#fff;padding:1px 8px">Teal</span></td><td>Stringers</td></tr>
+            <tr><td><span style="background:#F57F17;color:#fff;padding:1px 8px">Orange</span></td><td>Equipment support / saddle beams</td></tr>
+            <tr><td><span style="background:#4CAF50;color:#fff;padding:1px 8px">Green</span></td><td>Skid platform beams</td></tr>
+            <tr><td><span style="background:#9C27B0;color:#fff;padding:1px 8px">Purple</span></td><td>Leg / lug connection members</td></tr>
+          </tbody>
+        </table>
+
+        <hr>
+        <h4 id="man-codes" style="color:var(--accent)">12. Code References</h4>
+        <table class="table table-sm table-bordered" style="font-size:12px">
+          <thead class="table-dark"><tr><th>Standard</th><th>Clause / Method</th><th>Application</th></tr></thead>
+          <tbody>
+            <tr><td>AISC 360-22 F2</td><td>Laterally unbraced beam, LTB</td><td>Flexural capacity φMn</td></tr>
+            <tr><td>AISC 360-22 G2</td><td>Web shear, Cv1</td><td>Shear capacity φVn</td></tr>
+            <tr><td>AISC 360-22 E3</td><td>Flexural buckling, Fe/Fcr</td><td>Axial compression φPn</td></tr>
+            <tr><td>AISC 360-22 H1-1</td><td>Combined axial + biaxial bending</td><td>Interaction UC ≤ 1.0</td></tr>
+            <tr><td>AISC 360-22 B4.1</td><td>λp, λr slenderness limits</td><td>Section compactness</td></tr>
+            <tr><td>ACI 318-19 §22.6</td><td>Two-way punching shear, bo perimeter</td><td>Footing thickness</td></tr>
+            <tr><td>ACI 318-19 §22.5</td><td>One-way beam shear at d from face</td><td>Footing thickness</td></tr>
+            <tr><td>ACI 318-19 §22.3</td><td>Flexural tension rebar</td><td>Footing rebar schedule</td></tr>
+            <tr><td>ASCE 7-22 §26–27</td><td>Open-frame wind (Cf = 1.3)</td><td>Lateral wind forces</td></tr>
+            <tr><td>ASCE 7-22 §12.8</td><td>Equivalent Lateral Force (ELF)</td><td>Seismic base shear V, Fx</td></tr>
+          </tbody>
+        </table>
+
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /tabManual -->
 
 </div><!-- tab-content -->
 </div><!-- container-fluid -->
@@ -1622,6 +1876,16 @@ function downloadTemplate(type){
   window.open(`${API}/templates/${type}`, '_blank');
 }
 
+function openNozzleImport(){
+  // Switch to Import/Export tab, pre-select nozzles-csv
+  const importTab = document.querySelector('a[href="#tabImport"]');
+  if(importTab) bootstrap.Tab.getOrCreateInstance(importTab).show();
+  setTimeout(() => {
+    const sel = document.getElementById('importType');
+    if(sel){ sel.value = 'nozzles-csv'; updateImportHint(); }
+  }, 150);
+}
+
 function exportResultsCSV(){
   if(!currentProject){ alert('Select a project first'); return; }
   window.open(`${API}/projects/${currentProject}/export/results-csv`, '_blank');
@@ -1650,6 +1914,9 @@ const EQ_COLORS = {
 };
 const MEM_COLORS = {
   BEAM:0x1565C0, COLUMN:0x37474F, BRACE:0xB71C1C, STRINGER:0x00695C,
+  SUPPORT_BEAM:0xF57F17, SADDLE_BEAM:0xF57F17,
+  SKID_BEAM:0x4CAF50, SKID_PLATFORM:0x4CAF50,
+  LEG_BEAM:0x9C27B0, LEG_CAP:0xAB47BC,
 };
 const SEL_COLOR = 0xFFD600;
 
@@ -1810,12 +2077,12 @@ async function loadModel(pid) {
   nozzleGroup.clear();
   sceneBox = new THREE.Box3();
 
-  const [eqList, memberList, nodeList, nozzleList] =
+  const [eqList, memberList, nodeList, rackList] =
     await Promise.all([
       fetch(`/api/projects/${pid}/equipment`).then(r=>r.json()),
       fetch(`/api/projects/${pid}/members`).then(r=>r.json()),
       fetch(`/api/projects/${pid}/nodes`).then(r=>r.json()),
-      fetchAllNozzles(pid, eqList_ => eqList_),
+      fetch(`/api/projects/${pid}/rack`).then(r=>r.json()),
     ]);
 
   const nozzles = await fetchAllNozzles(pid, eqList);
@@ -1824,9 +2091,23 @@ async function loadModel(pid) {
   const nodeMap = {};
   nodeList.forEach(n => { nodeMap[n.node_tag] = n; });
 
+  // Build rack geometry helper for equipment positioning
+  const rack = rackList && rackList.length ? rackList[0] : null;
+  let rackGeo = null;
+  if (rack) {
+    try {
+      const th = JSON.parse(rack.tier_heights || '[4000]');
+      rackGeo = {
+        tierHeights: [0, ...th],   // index 1 = tier-1 elevation
+        baySpan: rack.bay_span || 9000,
+        width: rack.width_of_rack || 6000,
+      };
+    } catch(e) { rackGeo = null; }
+  }
+
   renderStructure(memberList, nodeMap);
-  renderEquipment(eqList);
-  renderNozzleForces(nozzles, eqList);
+  renderEquipment(eqList, rackGeo);
+  renderNozzleForces(nozzles, eqList, rackGeo);
   buildModelTree(eqList, memberList, nodeList);
   fitView();
 
@@ -1859,9 +2140,14 @@ function renderStructure(members, nodeMap) {
     const p1 = new THREE.Vector3(n1.x*S, n1.y*S, n1.z*S);
     const p2 = new THREE.Vector3(n2.x*S, n2.y*S, n2.z*S);
     const color  = MEM_COLORS[m.member_type] ?? MEM_COLORS.BEAM;
-    const w = m.member_type === 'COLUMN' ? 0.22
-            : m.member_type === 'BRACE'  ? 0.12
-            : m.member_type === 'BEAM'   ? 0.20 : 0.15;
+    const w = m.member_type === 'COLUMN'       ? 0.22
+            : m.member_type === 'BRACE'        ? 0.12
+            : m.member_type === 'BEAM'         ? 0.20
+            : m.member_type === 'SUPPORT_BEAM' ? 0.18
+            : m.member_type === 'SADDLE_BEAM'  ? 0.18
+            : m.member_type === 'SKID_BEAM' || m.member_type === 'SKID_PLATFORM' ? 0.14
+            : m.member_type === 'LEG_BEAM' || m.member_type === 'LEG_CAP' ? 0.16
+            : 0.15;
     const mesh = makeMemberMesh(p1, p2, w, color);
     if (!mesh) return;
     mesh.userData = { id: m.id, type: 'MEMBER', data: m };
@@ -1897,16 +2183,36 @@ function makeMemberMesh(p1, p2, w, color) {
   return mesh;
 }
 
+// ─── RACK-GEOMETRY POSITION HELPER ──────────────────────────────
+function eqWorldPos(eq, rackGeo) {
+  // Prefer explicit pos_x/pos_z if non-zero, otherwise derive from tier/bay
+  let px = (eq.pos_x || 0);
+  let py = (eq.elevation || eq.pos_y || 0);
+  let pz = (eq.pos_z || 0);
+
+  if (rackGeo) {
+    const tier = Math.max(1, parseInt(eq.tier_level) || 1);
+    const bay  = Math.max(1, parseInt(eq.bay_number)  || 1);
+    // Y from rack tier height
+    if (py === 0 && tier <= rackGeo.tierHeights.length - 1)
+      py = rackGeo.tierHeights[tier];
+    // Z from bay centre
+    if (pz === 0)
+      pz = (bay - 1) * rackGeo.baySpan + rackGeo.baySpan / 2;
+    // X at rack centre width
+    if (px === 0)
+      px = rackGeo.width / 2;
+  }
+  return { px: px * S, py: py * S, pz: pz * S };
+}
+
 // ─── RENDER EQUIPMENT ────────────────────────────────────────────
-function renderEquipment(eqList) {
+function renderEquipment(eqList, rackGeo) {
   eqList.forEach(eq => {
     const color = EQ_COLORS[eq.type] ?? EQ_COLORS.DEFAULT;
     const mesh = buildEqMesh(eq, color);
     if (!mesh) return;
-    // Position: EPC coords → Three.js (Y=up = elevation)
-    const px = (eq.pos_x  || 0) * S;
-    const py = (eq.elevation || eq.pos_y || 0) * S;
-    const pz = (eq.pos_z  || 0) * S;
+    const { px, py, pz } = eqWorldPos(eq, rackGeo);
     mesh.position.set(px, py, pz);
     mesh.userData = { id: eq.id, type: 'EQUIPMENT', data: eq };
     mesh.castShadow = true;
@@ -1985,7 +2291,7 @@ function wrapMesh(mesh) {
 }
 
 // ─── NOZZLE FORCE ARROWS ────────────────────────────────────────
-function renderNozzleForces(nozzles, eqList) {
+function renderNozzleForces(nozzles, eqList, rackGeo) {
   const eqMap = {};
   eqList.forEach(e => { eqMap[e.id] = e; });
 
@@ -1996,10 +2302,11 @@ function renderNozzleForces(nozzles, eqList) {
     const fmag = Math.sqrt(fx*fx + fy*fy + fz*fz);
     if (fmag < 100) return;  // skip negligible
 
+    const { px: epx, py: epy, pz: epz } = eqWorldPos(eq, rackGeo);
     const origin = new THREE.Vector3(
-      ((eq.pos_x||0) + (nz.pos_x||0)) * S,
-      ((eq.elevation||0) + (nz.pos_y||0)) * S,
-      ((eq.pos_z||0) + (nz.pos_z||0)) * S
+      epx + (nz.pos_x || 0) * S,
+      epy + (nz.pos_y || 0) * S,
+      epz + (nz.pos_z || 0) * S
     );
     const dir    = new THREE.Vector3(fx, fy, fz).normalize();
     const len    = Math.min(Math.max(fmag / 20000, 0.5), 5);
