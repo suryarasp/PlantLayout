@@ -1102,7 +1102,7 @@ hr{border-color:var(--border)}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ─── STATE ───────────────────────────────────────────────────────
-let currentProject = null;
+window.currentProject = null;
 let currentEqId = null;
 let rackId = null;
 const API = '/api';
@@ -1154,7 +1154,7 @@ async function loadProjects(){
   sel.innerHTML = '<option value="">— Select Project —</option>';
   tbody.innerHTML = '';
   data.forEach(p => {
-    sel.innerHTML += `<option value="${p.id}" ${p.id==currentProject? 'selected':''}>${p.name}</option>`;
+    sel.innerHTML += `<option value="${p.id}" ${p.id==window.currentProject? 'selected':''}>${p.name}</option>`;
     tbody.innerHTML += `<tr>
       <td>${p.id}</td><td><a href="#" onclick="selectProject(${p.id})" style="color:var(--accent)">${p.name}</a></td>
       <td>${p.code_standard}</td>
@@ -1186,8 +1186,8 @@ async function createProject(){
 }
 
 async function selectProject(pid){
-  if(!pid){ currentProject=null; return; }
-  currentProject = +pid;
+  if(!pid){ window.currentProject=null; return; }
+  window.currentProject = +pid;
   document.getElementById('projectSelect').value = pid;
   const p = await api('GET', `/projects/${pid}`);
   // Populate project settings tab
@@ -1203,10 +1203,12 @@ async function selectProject(pid){
   await Promise.all([loadEquipment(), loadLoadCases(), loadNodalLoads(), loadDistLoads(),
                      loadCombos(), loadRack(), loadSections()]);
   loadSummary();
+  // Notify the 3D module that a project was selected
+  document.dispatchEvent(new CustomEvent('projectSelected', { detail: pid }));
 }
 
 async function saveProject(){
-  if(!currentProject){ alert('Create a project first'); return; }
+  if(!window.currentProject){ alert('Create a project first'); return; }
   const d = {
     name: document.getElementById('pName').value,
     description: document.getElementById('pDesc').value,
@@ -1222,7 +1224,7 @@ async function saveProject(){
     soil_bearing: +document.getElementById('pSoilBearing').value,
     soil_depth: +document.getElementById('pSoilDepth').value,
   };
-  await api('PUT', `/projects/${currentProject}`, d);
+  await api('PUT', `/projects/${window.currentProject}`, d);
   await loadProjects();
   alert('Project settings saved.');
 }
@@ -1230,14 +1232,14 @@ async function saveProject(){
 async function deleteProject(pid){
   if(!confirm('Delete this project and all its data?')) return;
   await api('DELETE', `/projects/${pid}`);
-  if(currentProject===pid){ currentProject=null; }
+  if(window.currentProject===pid){ window.currentProject=null; }
   loadProjects();
 }
 
 // ─── EQUIPMENT ───────────────────────────────────────────────────
 async function loadEquipment(){
-  if(!currentProject) return;
-  const data = await api('GET', `/projects/${currentProject}/equipment`);
+  if(!window.currentProject) return;
+  const data = await api('GET', `/projects/${window.currentProject}/equipment`);
   const tbody = document.querySelector('#tblEquipment tbody');
   tbody.innerHTML = '';
   data.forEach(e => {
@@ -1259,7 +1261,7 @@ async function loadEquipment(){
 }
 
 async function saveEquipment(){
-  if(!currentProject) return;
+  if(!window.currentProject) return;
   const d = {
     tag: document.getElementById('eqTag').value,
     type: document.getElementById('eqType').value,
@@ -1284,7 +1286,7 @@ async function saveEquipment(){
     notes: document.getElementById('eqNotes').value,
   };
   if(!d.tag){ alert('Tag required'); return; }
-  await api('POST', `/projects/${currentProject}/equipment`, d);
+  await api('POST', `/projects/${window.currentProject}/equipment`, d);
   hideModal('modalEquipment');
   loadEquipment();
 }
@@ -1373,8 +1375,8 @@ async function saveBaseplate(){
 
 // ─── LOADS ───────────────────────────────────────────────────────
 async function loadLoadCases(){
-  if(!currentProject) return;
-  const data = await api('GET', `/projects/${currentProject}/load-cases`);
+  if(!window.currentProject) return;
+  const data = await api('GET', `/projects/${window.currentProject}/load-cases`);
   const tbody = document.querySelector('#tblLoadCases tbody');
   tbody.innerHTML = '';
   data.forEach(lc => {
@@ -1391,8 +1393,8 @@ async function loadLoadCases(){
 }
 
 async function loadNodalLoads(){
-  if(!currentProject) return;
-  const data = await api('GET', `/projects/${currentProject}/nodal-loads`);
+  if(!window.currentProject) return;
+  const data = await api('GET', `/projects/${window.currentProject}/nodal-loads`);
   const tbody = document.querySelector('#tblNodalLoads tbody');
   tbody.innerHTML = '';
   data.forEach(n => {
@@ -1407,7 +1409,7 @@ async function loadNodalLoads(){
 }
 
 async function saveNodalLoad(){
-  if(!currentProject) return;
+  if(!window.currentProject) return;
   const d = {
     load_case_id: +document.getElementById('nlCase').value,
     node_tag: document.getElementById('nlNode').value,
@@ -1419,7 +1421,7 @@ async function saveNodalLoad(){
     mz: +document.getElementById('nlMz').value,
     load_source: document.getElementById('nlSource').value,
   };
-  await api('POST', `/projects/${currentProject}/nodal-loads`, d);
+  await api('POST', `/projects/${window.currentProject}/nodal-loads`, d);
   hideModal('modalNodalLoad');
   loadNodalLoads();
 }
@@ -1427,8 +1429,8 @@ async function saveNodalLoad(){
 async function deleteNodalLoad(id){ await api('DELETE', `/nodal-loads/${id}`); loadNodalLoads(); }
 
 async function loadDistLoads(){
-  if(!currentProject) return;
-  const data = await api('GET', `/projects/${currentProject}/distributed-loads`);
+  if(!window.currentProject) return;
+  const data = await api('GET', `/projects/${window.currentProject}/distributed-loads`);
   const tbody = document.querySelector('#tblDistLoads tbody');
   tbody.innerHTML = '';
   data.forEach(d => {
@@ -1443,7 +1445,7 @@ async function loadDistLoads(){
 }
 
 async function saveDistLoad(){
-  if(!currentProject) return;
+  if(!window.currentProject) return;
   const d = {
     load_case_id: +document.getElementById('dlCase').value,
     member_tag: document.getElementById('dlMember').value,
@@ -1454,7 +1456,7 @@ async function saveDistLoad(){
     distance_b: +document.getElementById('dlB').value,
     direction: document.getElementById('dlDir').value,
   };
-  await api('POST', `/projects/${currentProject}/distributed-loads`, d);
+  await api('POST', `/projects/${window.currentProject}/distributed-loads`, d);
   hideModal('modalDistLoad');
   loadDistLoads();
 }
@@ -1462,8 +1464,8 @@ async function saveDistLoad(){
 async function deleteDistLoad(id){ await api('DELETE', `/distributed-loads/${id}`); loadDistLoads(); }
 
 async function loadCombos(){
-  if(!currentProject) return;
-  const data = await api('GET', `/projects/${currentProject}/load-combinations`);
+  if(!window.currentProject) return;
+  const data = await api('GET', `/projects/${window.currentProject}/load-combinations`);
   const tbody = document.querySelector('#tblCombos tbody');
   tbody.innerHTML = '';
   data.forEach(c => {
@@ -1480,8 +1482,8 @@ async function loadCombos(){
 }
 
 async function generateCombos(type){
-  if(!currentProject){ alert('Select a project first'); return; }
-  const r = await api('POST', `/projects/${currentProject}/load-combinations/generate`, {type});
+  if(!window.currentProject){ alert('Select a project first'); return; }
+  const r = await api('POST', `/projects/${window.currentProject}/load-combinations/generate`, {type});
   alert(r.message);
   loadCombos();
 }
@@ -1490,8 +1492,8 @@ async function deleteCombo(id){ await api('DELETE', `/load-combinations/${id}`);
 
 // ─── STRUCTURE ────────────────────────────────────────────────────
 async function loadRack(){
-  if(!currentProject) return;
-  const racks = await api('GET', `/projects/${currentProject}/rack`);
+  if(!window.currentProject) return;
+  const racks = await api('GET', `/projects/${window.currentProject}/rack`);
   if(racks.length > 0){
     const rack = racks[0];
     rackId = rack.id;
@@ -1514,7 +1516,7 @@ async function loadRack(){
 }
 
 async function saveRack(){
-  if(!currentProject){ alert('Select a project first'); return; }
+  if(!window.currentProject){ alert('Select a project first'); return; }
   const thStr = document.getElementById('rTierHeights').value;
   const th = thStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
   const d = {
@@ -1533,7 +1535,7 @@ async function saveRack(){
   if(rackId){
     await api('PUT', `/rack/${rackId}`, d);
   } else {
-    const r = await api('POST', `/projects/${currentProject}/rack`, d);
+    const r = await api('POST', `/projects/${window.currentProject}/rack`, d);
     rackId = r.id;
   }
   drawRackSVG(d);
@@ -1675,8 +1677,8 @@ function updateRackSummary(rack){
 }
 
 async function loadMembers(){
-  if(!currentProject) return;
-  const data = await api('GET', `/projects/${currentProject}/members`);
+  if(!window.currentProject) return;
+  const data = await api('GET', `/projects/${window.currentProject}/members`);
   const tbody = document.querySelector('#tblMembers tbody');
   tbody.innerHTML = '';
   const filter = document.getElementById('memberTypeFilter').value;
@@ -1741,10 +1743,10 @@ function setStepState(step, state){
 }
 
 async function runStep(step){
-  if(!currentProject){ alert('Select a project first'); return; }
+  if(!window.currentProject){ alert('Select a project first'); return; }
   setStepState(step, 'run');
   log(`Running ${step}...`);
-  const r = await api('POST', `/projects/${currentProject}/calculate/${step}`);
+  const r = await api('POST', `/projects/${window.currentProject}/calculate/${step}`);
   if(r.error){
     log(`ERROR: ${r.error}`, 'err');
     setStepState(step, 'fail');
@@ -1759,7 +1761,7 @@ async function runStep(step){
 }
 
 async function runAll(){
-  if(!currentProject){ alert('Select a project first'); return; }
+  if(!window.currentProject){ alert('Select a project first'); return; }
   document.getElementById('calcProgress').style.width='10%';
   log('Starting complete analysis...', '');
   const steps = ['reactions','section-checks','foundations'];
@@ -1792,8 +1794,8 @@ async function calcSectionCapacity(){
 }
 
 async function loadSummary(){
-  if(!currentProject) return;
-  const s = await api('GET', `/projects/${currentProject}/results/summary`);
+  if(!window.currentProject) return;
+  const s = await api('GET', `/projects/${window.currentProject}/results/summary`);
   document.getElementById('sEquip').textContent    = s.equipment_count || 0;
   document.getElementById('sMembers').textContent  = s.member_total || 0;
   document.getElementById('sFootings').textContent = s.footing_total || 0;
@@ -1809,9 +1811,9 @@ async function loadSummary(){
 
 // ─── RESULTS ─────────────────────────────────────────────────────
 async function loadMemberResults(){
-  if(!currentProject) return;
+  if(!window.currentProject) return;
   const filter = document.getElementById('resMemberFilter').value;
-  const data   = await api('GET', `/projects/${currentProject}/results/members`);
+  const data   = await api('GET', `/projects/${window.currentProject}/results/members`);
   const tbody  = document.querySelector('#tblResMembers tbody');
   tbody.innerHTML = '';
   data.filter(r => !filter || r.status===filter).forEach(r => {
@@ -1835,8 +1837,8 @@ async function loadMemberResults(){
 }
 
 async function loadReactionResults(){
-  if(!currentProject) return;
-  const data  = await api('GET', `/projects/${currentProject}/results/reactions`);
+  if(!window.currentProject) return;
+  const data  = await api('GET', `/projects/${window.currentProject}/results/reactions`);
   const tbody = document.querySelector('#tblResReactions tbody');
   tbody.innerHTML = '';
   data.forEach(r => {
@@ -1850,8 +1852,8 @@ async function loadReactionResults(){
 }
 
 async function loadFoundationResults(){
-  if(!currentProject) return;
-  const data  = await api('GET', `/projects/${currentProject}/results/foundations`);
+  if(!window.currentProject) return;
+  const data  = await api('GET', `/projects/${window.currentProject}/results/foundations`);
   const tbody = document.querySelector('#tblResFoundations tbody');
   tbody.innerHTML = '';
   data.forEach(f => {
@@ -1886,7 +1888,7 @@ function updateImportHint(){
 }
 
 async function doImport(){
-  if(!currentProject){ alert('Select a project first'); return; }
+  if(!window.currentProject){ alert('Select a project first'); return; }
   const file = document.getElementById('importFile').files[0];
   if(!file){ alert('Select a file'); return; }
   const type = document.getElementById('importType').value;
@@ -1898,7 +1900,7 @@ async function doImport(){
   logBox.style.color = '#d0e4f7';
   logBox.textContent = 'Uploading...';
 
-  const r    = await fetch(`${API}/projects/${currentProject}/import/${type}`, {method:'POST', body:form});
+  const r    = await fetch(`${API}/projects/${window.currentProject}/import/${type}`, {method:'POST', body:form});
   const data = await r.json();
 
   let msg = `Imported: ${data.added} rows`;
@@ -1929,8 +1931,8 @@ function openNozzleImport(){
 }
 
 function exportResultsCSV(){
-  if(!currentProject){ alert('Select a project first'); return; }
-  window.open(`${API}/projects/${currentProject}/export/results-csv`, '_blank');
+  if(!window.currentProject){ alert('Select a project first'); return; }
+  window.open(`${API}/projects/${window.currentProject}/export/results-csv`, '_blank');
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────
@@ -2750,17 +2752,14 @@ window.refreshViewer = function() {
   if (window.currentProject) loadModel(window.currentProject);
 };
 
-// Also reload when selectProject is called and 3D tab is already active
-const _origSelect = window.selectProject;
-if (_origSelect) {
-  window.selectProject = async function(pid) {
-    await _origSelect(pid);
-    const tab = document.querySelector('#tab3D');
-    if (tab && tab.classList.contains('active') && pid) {
-      setTimeout(() => loadModel(pid), 200);
-    }
-  };
-}
+// Auto-reload 3D view when project changes and tab is already open
+document.addEventListener('projectSelected', (e) => {
+  const pid = e.detail;
+  const tab = document.querySelector('#tab3D');
+  if (tab && tab.classList.contains('active') && pid) {
+    setTimeout(() => loadModel(pid), 200);
+  }
+});
 </script>
 </body>
 </html>
