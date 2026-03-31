@@ -85,6 +85,9 @@ hr{border-color:var(--border)}
 .tree-label{overflow:hidden;text-overflow:ellipsis;flex:1;font-size:13px}
 .tree-count{font-size:11px;color:var(--muted);flex-shrink:0}
 .tree-children{padding-left:14px}
+.tree-eye{font-size:12px;flex-shrink:0;opacity:.5;transition:opacity .15s}
+.tree-row:hover .tree-eye{opacity:1}
+.tree-eye:hover{color:var(--accent)!important}
 /* Property panel */
 .prop-group{margin-bottom:.5rem}
 .prop-group-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding:.25rem .4rem;border-bottom:1px solid var(--border);margin-bottom:.3rem}
@@ -650,6 +653,8 @@ hr{border-color:var(--border)}
       <button class="btn btn-sm" id="btnWire"    onclick="v3d.toggleWire()"    title="Wireframe"><i class="bi bi-box"></i> Wire</button>
       <button class="btn btn-sm" id="btnLabels"  onclick="v3d.toggleLabels()"  title="Labels"><i class="bi bi-tag"></i> Labels</button>
       <button class="btn btn-sm" id="btnNozzles" onclick="v3d.toggleNozzles()" title="Nozzle Forces"><i class="bi bi-arrows-expand-vertical"></i> Nozzles</button>
+      <div class="sep"></div>
+      <button class="btn btn-sm" onclick="v3d.exportHTML()" title="Export standalone 3D HTML viewer" style="color:#5bdb7f;border-color:#5bdb7f"><i class="bi bi-box-arrow-up-right"></i> Export HTML</button>
       <div class="sep"></div>
       <span style="font-size:10px;color:var(--muted)">
         <span class="ax-x">■ X</span>&nbsp;
@@ -2276,56 +2281,184 @@ function renderEquipment(eqList, rackGeo) {
   });
 }
 
+// ─── EQUIPMENT MESH BUILDERS ─────────────────────────────────────
+// Returns a THREE.Group with all sub-parts at local origin (base = y=0)
+
+function matOf(color, opacity=0.92) {
+  return new THREE.MeshPhongMaterial({ color, transparent: opacity<1, opacity, shininess:40 });
+}
+function matDark(color) { return new THREE.MeshPhongMaterial({ color, shininess:20 }); }
+
 function buildEqMesh(eq, color) {
-  const mat = new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.88 });
-  const d = (eq.diameter_mm || 1000) * S;
-  const r = d / 2;
-  let geo;
+  const type   = (eq.type || 'DEFAULT').toUpperCase();
+  const orient = (eq.orientation || 'H').toUpperCase();
+  const d  = Math.max((eq.diameter_mm || 1200) * S, 0.4);
+  const r  = d / 2;
+  const Lv = Math.max((eq.length_mm  || 3000) * S, 0.6);
+  const Hv = Math.max((eq.height_mm  || 4000) * S, 0.6);
 
-  const type = eq.type || 'DEFAULT';
+  switch(type) {
 
-  if (type === 'TANK') {
-    // Vertical cylinder
-    const h = (eq.height_mm || eq.diameter_mm || 3000) * S;
-    geo = new THREE.CylinderGeometry(r, r, h, 32);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = h / 2;  // offset so base is at elevation
-    // Wrap in pivot group
-    return wrapMesh(mesh);
+    // ── STORAGE TANK (flat-bottom vertical) ────────────────────────
+    case 'TANK': {
+      const h = Math.max(Hv, d);
+      const g = new THREE.Group();
+      const shell = new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,32), matOf(color));
+      shell.position.y = h/2;
+      // Cone roof (floating roof approximation)
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(r, r*0.18, 32), matOf(color*0.9+0x111111));
+      roof.position.y = h + r*0.09;
+      g.add(shell, roof);
+      return g;
+    }
+
+    // ── VERTICAL PRESSURE VESSEL / COLUMN / TOWER ──────────────────
+    case 'REACTOR':
+    case 'COLUMN':
+    case 'VESSEL': if(orient==='V') {
+      const h = Math.max(Hv, d*2);
+      const g = new THREE.Group();
+      // Cylindrical shell
+      const shell = new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,24), matOf(color,0.90));
+      shell.position.y = h/2 + r*0.5; // sits on skirt
+      // Hemispherical top head
+      const topH = new THREE.Mesh(new THREE.SphereGeometry(r,24,12,0,Math.PI*2,0,Math.PI/2), matOf(color,0.90));
+      topH.position.y = h + r*0.5;
+      // Ellipsoidal bottom head (approximate with sphere half)
+      const botH = new THREE.Mesh(new THREE.SphereGeometry(r,24,12,0,Math.PI*2,Math.PI/2,Math.PI/2), matOf(color,0.90));
+      botH.position.y = r*0.5;
+      // Skirt
+      const skirtH = r*0.5;
+      const skirt = new THREE.Mesh(new THREE.CylinderGeometry(r*0.85, r*0.85, skirtH, 24, 1, true), matDark(0x334455));
+      skirt.position.y = skirtH/2;
+      // Nozzle stubs (top & bottom)
+      const nTop = new THREE.Mesh(new THREE.CylinderGeometry(r*0.12,r*0.12,r*0.4,8), matDark(0x667788));
+      nTop.position.y = h + r + r*0.2;
+      const nBot = new THREE.Mesh(new THREE.CylinderGeometry(r*0.10,r*0.10,r*0.3,8), matDark(0x667788));
+      nBot.rotation.z = Math.PI/2; nBot.position.set(r*1.1, r*0.5, 0);
+      g.add(skirt, shell, topH, botH, nTop, nBot);
+      return g;
+    }
+    // fall through to horizontal vessel ↓
+
+    // ── HORIZONTAL VESSEL / DRUM / EXCHANGER ───────────────────────
+    case 'DRUM':
+    case 'EXCHANGER': {
+      const L = Math.max(Lv, d);
+      const g = new THREE.Group();
+      const shell = new THREE.Mesh(new THREE.CylinderGeometry(r,r,L,24), matOf(color,0.90));
+      shell.rotation.z = Math.PI/2;
+      shell.position.y = r;
+      // Hemispherical end caps
+      const capL = new THREE.Mesh(new THREE.SphereGeometry(r,24,12,0,Math.PI*2,0,Math.PI/2), matOf(color,0.90));
+      capL.rotation.z = -Math.PI/2; capL.position.set(-L/2, r, 0);
+      const capR = new THREE.Mesh(new THREE.SphereGeometry(r,24,12,0,Math.PI*2,0,Math.PI/2), matOf(color,0.90));
+      capR.rotation.z = Math.PI/2; capR.position.set(L/2, r, 0);
+      // Saddle supports
+      for(const sf of [0.2, 0.8]) {
+        const sx = -L/2 + sf*L;
+        const sad = new THREE.Mesh(new THREE.BoxGeometry(r*0.25, r*1.1, r*0.6), matDark(0x445566));
+        sad.position.set(sx, r*0.55-r*1.1/2, 0);
+        g.add(sad);
+      }
+      // Side nozzle stub
+      const nz = new THREE.Mesh(new THREE.CylinderGeometry(r*0.12,r*0.12,r*0.35,8), matDark(0x667788));
+      nz.position.set(0, r*2, 0);
+      g.add(shell, capL, capR, nz);
+      return g;
+    }
+
+    // ── CENTRIFUGAL PUMP ──────────────────────────────────────────
+    case 'PUMP': {
+      const g = new THREE.Group();
+      const bw = Math.max(Lv*0.55, 0.4);
+      const bh = Math.max(d*0.55, 0.3);
+      const bd = Math.max(d*0.45, 0.25);
+      // Casing (volute — approximate as flattened sphere)
+      const casing = new THREE.Mesh(new THREE.SphereGeometry(bh*0.7, 16, 12), matOf(color));
+      casing.scale.set(1.2,0.9,1.1);
+      casing.position.set(0, bh*0.7, 0);
+      // Suction nozzle (horizontal, entering from side)
+      const suc = new THREE.Mesh(new THREE.CylinderGeometry(bh*0.18,bh*0.18,bw*0.5,8), matDark(0x556677));
+      suc.rotation.z = Math.PI/2; suc.position.set(-bw*0.55, bh*0.5, 0);
+      // Discharge nozzle (vertical, up)
+      const dis = new THREE.Mesh(new THREE.CylinderGeometry(bh*0.14,bh*0.14,bh*0.5,8), matDark(0x556677));
+      dis.position.set(0, bh*1.55, 0);
+      // Motor body
+      const motor = new THREE.Mesh(new THREE.CylinderGeometry(bh*0.38,bh*0.38,bw*0.55,16), matDark(0x2a3a4a));
+      motor.rotation.z = Math.PI/2; motor.position.set(bw*0.52, bh*0.6, 0);
+      // Coupling
+      const coup = new THREE.Mesh(new THREE.CylinderGeometry(bh*0.18,bh*0.18,bw*0.1,8), matDark(0x445566));
+      coup.rotation.z = Math.PI/2; coup.position.set(bw*0.22, bh*0.6, 0);
+      // Baseplate
+      const base = new THREE.Mesh(new THREE.BoxGeometry(bw*1.2, bh*0.07, bd*1.6), matDark(0x222d38));
+      base.position.set(0, bh*0.035, 0);
+      g.add(base, casing, suc, dis, motor, coup);
+      return g;
+    }
+
+    // ── COMPRESSOR ───────────────────────────────────────────────
+    case 'COMPRESSOR': {
+      const g = new THREE.Group();
+      const bw = Math.max(Lv, 0.8);
+      const bh = Math.max(d*0.7, 0.5);
+      const bd = Math.max(d*0.55, 0.35);
+      // Cylinder block (main compressor body)
+      const body = new THREE.Mesh(new THREE.BoxGeometry(bw*0.55, bh*0.75, bd), matOf(color));
+      body.position.set(-bw*0.2, bh*0.375, 0);
+      // Cylinders on top
+      for(const ox of [-0.12, 0.12]) {
+        const cyl = new THREE.Mesh(new THREE.CylinderGeometry(bd*0.18,bd*0.18,bh*0.38,12), matDark(0x445566));
+        cyl.position.set(ox*bw, bh*0.95, 0);
+        g.add(cyl);
+      }
+      // Driver (motor/engine)
+      const drv = new THREE.Mesh(new THREE.CylinderGeometry(bh*0.32,bh*0.32,bw*0.42,16), matDark(0x2a3a4a));
+      drv.rotation.z = Math.PI/2; drv.position.set(bw*0.3, bh*0.38, 0);
+      // Baseplate
+      const base = new THREE.Mesh(new THREE.BoxGeometry(bw*1.1, bh*0.06, bd*1.5), matDark(0x222d38));
+      base.position.set(0, bh*0.03, 0);
+      g.add(base, body, drv);
+      return g;
+    }
+
+    // ── BLOWER / FAN ────────────────────────────────────────────
+    case 'BLOWER': {
+      const g = new THREE.Group();
+      const bh = Math.max(d*0.7, 0.4);
+      // Scroll casing
+      const scroll = new THREE.Mesh(new THREE.CylinderGeometry(bh*0.55,bh*0.55,bh*0.55,24), matOf(color));
+      scroll.position.set(0, bh*0.55, 0);
+      // Discharge duct (tangential)
+      const duct = new THREE.Mesh(new THREE.BoxGeometry(bh*0.28, bh*0.95, bh*0.28), matOf(color*0.85));
+      duct.position.set(bh*0.7, bh*0.78, 0);
+      // Inlet silencer (axial)
+      const inlet = new THREE.Mesh(new THREE.CylinderGeometry(bh*0.3,bh*0.3,bh*0.5,12), matDark(0x556677));
+      inlet.rotation.z = Math.PI/2; inlet.position.set(-bh*0.8, bh*0.55, 0);
+      // Motor
+      const mot = new THREE.Mesh(new THREE.CylinderGeometry(bh*0.28,bh*0.28,bh*0.6,12), matDark(0x2a3a4a));
+      mot.rotation.z = Math.PI/2; mot.position.set(bh*0.2, bh*0.55, 0);
+      // Base
+      const base = new THREE.Mesh(new THREE.BoxGeometry(bh*2.0, bh*0.06, bh*1.2), matDark(0x222d38));
+      base.position.set(0, bh*0.03, 0);
+      g.add(base, scroll, duct, inlet, mot);
+      return g;
+    }
+
+    // ── HEAT EXCHANGER (shell & tube — distinct from VESSEL) ───────
+    // Already handled above; fall to default
+
+    default: {
+      const L = Math.max(Lv, 0.5);
+      const H = Math.max(Hv*0.5, 0.4);
+      const W = Math.max(d, 0.4);
+      const g = new THREE.Group();
+      const box = new THREE.Mesh(new THREE.BoxGeometry(L, H, W), matOf(color, 0.85));
+      box.position.y = H/2;
+      g.add(box);
+      return g;
+    }
   }
-  if (type === 'REACTOR' || (type === 'VESSEL' && eq.orientation === 'V')) {
-    const h = (eq.height_mm || 5000) * S;
-    geo = new THREE.CylinderGeometry(r, r, h, 24);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = h / 2;
-    return wrapMesh(mesh);
-  }
-  if (type === 'VESSEL' || type === 'DRUM' || type === 'EXCHANGER') {
-    // Horizontal cylinder / box
-    const L = (eq.length_mm || 3000) * S;
-    geo = new THREE.CylinderGeometry(r, r, L, 24);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.rotation.z = Math.PI / 2;
-    mesh.position.y = r;
-    return wrapMesh(mesh);
-  }
-  if (type === 'PUMP' || type === 'COMPRESSOR' || type === 'BLOWER') {
-    const L = (eq.length_mm || 1800) * S;
-    const H = (eq.height_mm || 900) * S;
-    const W = (eq.diameter_mm || 700) * S;
-    geo = new THREE.BoxGeometry(L, H, W);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = H / 2;
-    return wrapMesh(mesh);
-  }
-  // Generic box
-  const L = Math.max((eq.length_mm || eq.diameter_mm || 2000) * S, 0.5);
-  const H = Math.max((eq.height_mm || eq.diameter_mm || 1500) * S, 0.4);
-  const W = Math.max((eq.diameter_mm || 1000) * S, 0.4);
-  geo = new THREE.BoxGeometry(L, H, W);
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.y = H / 2;
-  return wrapMesh(mesh);
 }
 
 function wrapMesh(mesh) {
@@ -2628,15 +2761,17 @@ function buildModelTree(eqList, memberList, nodeList) {
   });
 }
 
-function treeFolder(icon, color, label, count, childrenHtml) {
+function treeFolder(icon, color, label, count, childrenHtml, groupKey) {
+  const gk = groupKey || label.replace(/\s+/g,'_');
   return `<div class="tree-node">
     <div class="tree-row" data-folder="1">
       <span class="tree-toggle" style="color:${color}">▼</span>
       <i class="bi ${icon} tree-icon" style="color:${color}"></i>
       <span class="tree-label">${label}</span>
       <span class="tree-count">${count}</span>
+      <i class="bi bi-eye tree-eye ms-1" data-group="${gk}" title="Show/hide group" style="cursor:pointer;color:var(--muted);font-size:12px" onclick="toggleGroupVis(event,'${gk}')"></i>
     </div>
-    <div class="tree-children">${childrenHtml}</div>
+    <div class="tree-children" data-group-children="${gk}">${childrenHtml}</div>
   </div>`;
 }
 
@@ -2647,7 +2782,8 @@ function treeLeaf(nid, icon, color, label, sub, type, dataObj) {
       <span class="tree-toggle"></span>
       <i class="bi ${icon} tree-icon" style="color:${color}"></i>
       <span class="tree-label" title="${label} — ${sub}">${label}</span>
-      <span class="tree-count" style="color:${color};font-size:9px">${sub.slice(0,16)}</span>
+      <span class="tree-count" style="color:${color};font-size:10px">${sub.slice(0,14)}</span>
+      <i class="bi bi-eye tree-eye ms-1" data-nid="${nid}" title="Show/hide" style="cursor:pointer;color:var(--muted);font-size:12px" onclick="toggleItemVis(event,'${nid}')"></i>
     </div>
   </div>`;
 }
@@ -2737,8 +2873,357 @@ function colorHex(num) {
   return '#' + num.toString(16).padStart(6, '0');
 }
 
+// ─── VISIBILITY TOGGLES ─────────────────────────────────────────
+const _visHidden = new Set();   // set of mesh ids that are hidden
+
+function toggleItemVis(evt, nid) {
+  evt.stopPropagation();
+  const entry = allMeshes.find(o => o.id === nid);
+  if (!entry) return;
+  const hidden = _visHidden.has(nid);
+  entry.mesh.visible = hidden;
+  const eye = evt.currentTarget;
+  if (hidden) { _visHidden.delete(nid); eye.classList.replace('bi-eye-slash','bi-eye'); eye.style.color='var(--muted)'; }
+  else        { _visHidden.add(nid);    eye.classList.replace('bi-eye','bi-eye-slash'); eye.style.color='var(--danger)'; }
+}
+
+function toggleGroupVis(evt, groupKey) {
+  evt.stopPropagation();
+  // Collect all leaf nids under this group
+  const ch = document.querySelector(`[data-group-children="${groupKey}"]`);
+  if (!ch) return;
+  const nids = [...ch.querySelectorAll('[data-nid]')].map(r => r.dataset.nid);
+  // Determine target state: if any visible → hide all; else show all
+  const anyVisible = nids.some(nid => !_visHidden.has(nid));
+  nids.forEach(nid => {
+    const entry = allMeshes.find(o => o.id === nid);
+    if (!entry) return;
+    if (anyVisible) {
+      entry.mesh.visible = false; _visHidden.add(nid);
+      const leafEye = ch.querySelector(`[data-nid="${nid}"].tree-eye`);
+      if (leafEye) { leafEye.classList.replace('bi-eye','bi-eye-slash'); leafEye.style.color='var(--danger)'; }
+    } else {
+      entry.mesh.visible = true; _visHidden.delete(nid);
+      const leafEye = ch.querySelector(`[data-nid="${nid}"].tree-eye`);
+      if (leafEye) { leafEye.classList.replace('bi-eye-slash','bi-eye'); leafEye.style.color='var(--muted)'; }
+    }
+  });
+  const eye = evt.currentTarget;
+  if (anyVisible) { eye.classList.replace('bi-eye','bi-eye-slash'); eye.style.color='var(--danger)'; }
+  else            { eye.classList.replace('bi-eye-slash','bi-eye'); eye.style.color='var(--muted)'; }
+}
+
+// ─── EXPORT STANDALONE 3D HTML ───────────────────────────────────
+function exportHTML() {
+  // Collect scene geometry as JSON for the export
+  const exportData = {
+    equipment: [],
+    members: [],
+    nodes: [],
+  };
+
+  allMeshes.forEach(o => {
+    if (o.type === 'EQUIPMENT') {
+      const d = o.data;
+      exportData.equipment.push({
+        id: d.id, tag: d.tag, type: d.type, description: d.description||'',
+        diameter_mm: d.diameter_mm, length_mm: d.length_mm, height_mm: d.height_mm,
+        orientation: d.orientation, tier_level: d.tier_level, bay_number: d.bay_number,
+        pos: { x: o.mesh.position.x, y: o.mesh.position.y, z: o.mesh.position.z },
+      });
+    }
+    if (o.type === 'MEMBER') {
+      const d = o.data;
+      const bb = new THREE.Box3().setFromObject(o.mesh);
+      const c = new THREE.Vector3(); bb.getCenter(c);
+      exportData.members.push({
+        id: d.id, tag: d.member_tag, type: d.member_type,
+        section: d.section_name||'?', length: d.length_mm,
+        p1: { x: o.mesh.position.x - (o.mesh.geometry?.parameters?.depth||0)/2,
+              y: o.mesh.position.y, z: o.mesh.position.z },
+        center: { x: c.x, y: c.y, z: c.z },
+        quat: { x: o.mesh.quaternion.x, y: o.mesh.quaternion.y,
+                z: o.mesh.quaternion.z, w: o.mesh.quaternion.w },
+        len3d: o.mesh.geometry?.parameters?.depth || 1,
+      });
+    }
+  });
+
+  const pid = window.currentProject || 'model';
+  const title = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'EPC 3D Model';
+  const dataStr = JSON.stringify(exportData);
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} — 3D Viewer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a1520;color:#d0e4f7;font-family:'Segoe UI',sans-serif;display:flex;height:100vh;overflow:hidden}
+#tree{width:240px;background:#0f1e30;border-right:1px solid #1e3a5c;display:flex;flex-direction:column;font-size:13px;overflow:hidden}
+#treehead{background:#1a3a5c;padding:.5rem .8rem;font-size:12px;color:#e8a020;font-weight:700;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;display:flex;justify-content:space-between;align-items:center}
+#treebody{flex:1;overflow-y:auto;padding:.3rem}
+#treebody::-webkit-scrollbar{width:4px}#treebody::-webkit-scrollbar-thumb{background:#1e3a5c}
+#vp{flex:1;position:relative}
+canvas{display:block}
+.toolbar{position:absolute;top:0;left:0;right:0;background:#0f1e30cc;backdrop-filter:blur(4px);border-bottom:1px solid #1e3a5c;padding:.3rem .5rem;display:flex;gap:.4rem;align-items:center;z-index:10}
+.btn{background:none;border:1px solid #1e3a5c;color:#9ab8d8;padding:.2rem .55rem;border-radius:4px;cursor:pointer;font-size:12px}
+.btn:hover{border-color:#e8a020;color:#e8a020}
+.status{position:absolute;bottom:0;left:0;right:0;background:#06101a;border-top:1px solid #1e3a5c;padding:.2rem .6rem;font-size:11px;color:#7a9abb}
+.tr{display:flex;align-items:center;gap:.35rem;padding:.22rem .3rem;border-radius:3px;cursor:pointer;white-space:nowrap;overflow:hidden}
+.tr:hover{background:rgba(232,160,32,.08)}
+.tc{padding-left:14px}
+.tl{flex:1;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.eye{font-size:11px;cursor:pointer;color:#7a9abb;flex-shrink:0;width:14px;text-align:center}
+.eye:hover{color:#e8a020}
+.tog{width:14px;flex-shrink:0;font-size:10px;color:#7a9abb}
+</style>
+</head><body>
+<div id="tree">
+  <div id="treehead">Model Tree <button class="btn" onclick="fitAll()" style="font-size:10px">Fit All</button></div>
+  <div id="treebody"></div>
+</div>
+<div id="vp">
+  <div class="toolbar">
+    <button class="btn" onclick="fitAll()">⛶ Fit</button>
+    <button class="btn" onclick="setView('top')">Top</button>
+    <button class="btn" onclick="setView('front')">Front</button>
+    <button class="btn" onclick="setView('iso')">Iso</button>
+    <button class="btn" onclick="toggleWire()">Wire</button>
+    <button class="btn" onclick="toggleLabels()">Labels</button>
+    <span style="margin-left:auto;font-size:11px;color:#7a9abb">Orbit:L-drag &nbsp; Pan:R-drag &nbsp; Zoom:scroll</span>
+  </div>
+  <div class="status" id="status">Loading…</div>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const DATA = ${dataStr};
+const EQ_COLORS={TANK:0x607D8B,VESSEL:0xFF8F00,DRUM:0x8D6E63,REACTOR:0x9C27B0,PUMP:0x2E7D32,COMPRESSOR:0xE65100,BLOWER:0xF57C00,EXCHANGER:0x00695C,COLUMN:0xAD1457,DEFAULT:0x546E7A};
+const MEM_COLORS={BEAM:0x1565C0,COLUMN:0x37474F,BRACE:0xB71C1C,STRINGER:0x00695C,SUPPORT_BEAM:0xF57F17,SADDLE_BEAM:0xF57F17,SKID_BEAM:0x4CAF50,LEG_BEAM:0x9C27B0,LEG_CAP:0xAB47BC};
+
+const container = document.getElementById('vp');
+const W = ()=>container.clientWidth, H = ()=>container.clientHeight;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x06101a);
+const camera = new THREE.PerspectiveCamera(45, W()/H(), 0.1, 5000);
+camera.position.set(40,25,50);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(W(), H());
+renderer.shadowMap.enabled=true;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.06;
+controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};
+scene.add(new THREE.AmbientLight(0xffffff,0.55));
+const sun=new THREE.DirectionalLight(0xffffff,0.9); sun.position.set(60,120,80); sun.castShadow=true; scene.add(sun);
+scene.add(new THREE.DirectionalLight(0x6699cc,0.35).add(new THREE.Object3D())||sun);
+const fill=new THREE.DirectionalLight(0x6699cc,0.35); fill.position.set(-80,30,-60); scene.add(fill);
+scene.add(new THREE.GridHelper(200,100,0x1a3050,0x0d1e30));
+new ResizeObserver(()=>{camera.aspect=W()/H();camera.updateProjectionMatrix();renderer.setSize(W(),H());}).observe(container);
+
+const allMeshes=[], labelGroup=new THREE.Group(), _hidden=new Set();
+scene.add(labelGroup);
+let wireOn=false, labelsOn=true, sceneBox=new THREE.Box3();
+
+// Build members
+DATA.members.forEach(m=>{
+  const color=MEM_COLORS[m.type]??MEM_COLORS.BEAM;
+  const w=m.type==='COLUMN'?0.22:m.type==='BRACE'?0.12:m.type==='BEAM'?0.20:0.15;
+  const geo=new THREE.BoxGeometry(w,w,m.len3d);
+  const mat=new THREE.MeshLambertMaterial({color});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.position.set(m.center.x,m.center.y,m.center.z);
+  mesh.quaternion.set(m.quat.x,m.quat.y,m.quat.z,m.quat.w);
+  mesh.userData={id:'mem-'+m.id,type:'MEMBER',data:m};
+  scene.add(mesh); allMeshes.push({mesh,id:'mem-'+m.id,type:'MEMBER',data:m});
+  sceneBox.expandByObject(mesh);
+});
+
+// Build equipment (simplified for export)
+const matOf=(color,op=0.92)=>new THREE.MeshPhongMaterial({color,transparent:op<1,opacity:op,shininess:40});
+DATA.equipment.forEach(eq=>{
+  const color=EQ_COLORS[eq.type]??EQ_COLORS.DEFAULT;
+  const d=Math.max((eq.diameter_mm||1200)/1000,0.4), r=d/2;
+  const Lv=Math.max((eq.length_mm||3000)/1000,0.6);
+  const Hv=Math.max((eq.height_mm||4000)/1000,0.6);
+  const type=(eq.type||'DEFAULT').toUpperCase();
+  const orient=(eq.orientation||'H').toUpperCase();
+  const g=new THREE.Group();
+  if(type==='TANK'||type==='COLUMN'||(type==='VESSEL'&&orient==='V')||type==='REACTOR'){
+    const h=Math.max(Hv,d*2);
+    const shell=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,24),matOf(color));
+    shell.position.y=h/2+r*0.4;
+    const top=new THREE.Mesh(new THREE.SphereGeometry(r,16,10,0,Math.PI*2,0,Math.PI/2),matOf(color));
+    top.position.y=h+r*0.4;
+    const skirt=new THREE.Mesh(new THREE.CylinderGeometry(r*0.85,r*0.85,r*0.5,24,1,true),new THREE.MeshPhongMaterial({color:0x334455}));
+    skirt.position.y=r*0.25;
+    g.add(skirt,shell,top);
+  } else if(type==='PUMP'){
+    const bh=Math.max(d*0.55,0.3);
+    const bw=Math.max(Lv*0.55,0.4);
+    const cas=new THREE.Mesh(new THREE.SphereGeometry(bh*0.7,16,12),matOf(color));
+    cas.scale.set(1.2,0.9,1.1); cas.position.y=bh*0.7;
+    const mot=new THREE.Mesh(new THREE.CylinderGeometry(bh*0.38,bh*0.38,bw*0.55,16),new THREE.MeshPhongMaterial({color:0x2a3a4a}));
+    mot.rotation.z=Math.PI/2; mot.position.set(bw*0.52,bh*0.6,0);
+    const base=new THREE.Mesh(new THREE.BoxGeometry(bw*1.2,bh*0.07,bh*1.6),new THREE.MeshPhongMaterial({color:0x222d38}));
+    g.add(base,cas,mot);
+  } else if(type==='BLOWER'){
+    const bh=Math.max(d*0.7,0.4);
+    const scroll=new THREE.Mesh(new THREE.CylinderGeometry(bh*0.55,bh*0.55,bh*0.55,24),matOf(color));
+    scroll.position.y=bh*0.55;
+    const mot=new THREE.Mesh(new THREE.CylinderGeometry(bh*0.28,bh*0.28,bh*0.6,12),new THREE.MeshPhongMaterial({color:0x2a3a4a}));
+    mot.rotation.z=Math.PI/2; mot.position.set(bh*0.2,bh*0.55,0);
+    g.add(scroll,mot);
+  } else {
+    const L=Math.max(Lv,0.5), Lh=Math.max(d,0.4);
+    const shell=new THREE.Mesh(new THREE.CylinderGeometry(r,r,L,24),matOf(color));
+    shell.rotation.z=Math.PI/2; shell.position.y=r;
+    const capL=new THREE.Mesh(new THREE.SphereGeometry(r,16,10,0,Math.PI*2,0,Math.PI/2),matOf(color));
+    capL.rotation.z=-Math.PI/2; capL.position.set(-L/2,r,0);
+    const capR=new THREE.Mesh(new THREE.SphereGeometry(r,16,10,0,Math.PI*2,0,Math.PI/2),matOf(color));
+    capR.rotation.z=Math.PI/2; capR.position.set(L/2,r,0);
+    g.add(shell,capL,capR);
+  }
+  g.position.set(eq.pos.x,eq.pos.y,eq.pos.z);
+  g.userData={id:'eq-'+eq.id,type:'EQUIPMENT',data:eq};
+  scene.add(g); allMeshes.push({mesh:g,id:'eq-'+eq.id,type:'EQUIPMENT',data:eq});
+  sceneBox.expandByObject(g);
+  // Label
+  const c=document.createElement('canvas'); c.width=128;c.height=48;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='rgba(6,16,26,.8)'; ctx.beginPath(); ctx.roundRect(2,2,124,44,6); ctx.fill();
+  ctx.fillStyle='#'+color.toString(16).padStart(6,'0');
+  ctx.font='bold 22px monospace'; ctx.textAlign='center'; ctx.fillText(eq.tag,64,32);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true}));
+  const bb=new THREE.Box3().setFromObject(g);
+  sp.position.set(eq.pos.x, bb.max.y+0.7, eq.pos.z);
+  sp.scale.set(3,1.1,1);
+  sp.userData={linkedId:'eq-'+eq.id};
+  labelGroup.add(sp);
+});
+
+// ── Fit view
+function fitAll(){
+  if(sceneBox.isEmpty()){camera.position.set(40,25,50);controls.update();return;}
+  const c=new THREE.Vector3(); sceneBox.getCenter(c);
+  const sz=sceneBox.getSize(new THREE.Vector3());
+  const d=Math.max(sz.x,sz.y,sz.z)*1.6;
+  camera.position.set(c.x+d*0.6,c.y+d*0.5,c.z+d*0.8);
+  camera.lookAt(c); controls.target.copy(c); controls.update();
+}
+window.fitAll=fitAll;
+window.setView=function(mode){
+  if(sceneBox.isEmpty())return;
+  const c=new THREE.Vector3(); sceneBox.getCenter(c);
+  const sz=sceneBox.getSize(new THREE.Vector3());
+  const d=Math.max(sz.x,sz.y,sz.z)*1.6;
+  const pos={top:[c.x,c.y+d,c.z],front:[c.x,c.y,c.z+d],iso:[c.x+d*0.6,c.y+d*0.5,c.z+d*0.8]};
+  const p=pos[mode]||pos.iso;
+  camera.position.set(...p); camera.lookAt(c); controls.target.copy(c); controls.update();
+};
+window.toggleWire=function(){wireOn=!wireOn;allMeshes.forEach(o=>o.mesh.traverse(c=>{if(c.isMesh)c.material.wireframe=wireOn;}));};
+window.toggleLabels=function(){labelsOn=!labelsOn;labelGroup.visible=labelsOn;};
+
+// ── Build model tree
+function buildTree(){
+  const tb=document.getElementById('treebody');
+  const eqs=DATA.equipment, mems=DATA.members;
+  // group equipment
+  const eqG={};
+  eqs.forEach(e=>{(eqG[e.type]=eqG[e.type]||[]).push(e);});
+  const memG={};
+  mems.forEach(m=>{(memG[m.type]=memG[m.type]||[]).push(m);});
+  let h='';
+  // Equipment
+  h+='<div class="tr" onclick="toggleFold(this)" style="color:#e8a020;font-weight:600"><span class="tog">▼</span>Equipment ('+eqs.length+')<span class="eye" onclick="toggleGroup(event,\\'eq\\',null)">👁</span></div>';
+  h+='<div class="tc" id="grp-eq">';
+  Object.entries(eqG).sort().forEach(([t,items])=>{
+    const col='#'+((EQ_COLORS[t]||EQ_COLORS.DEFAULT).toString(16).padStart(6,'0'));
+    h+=\`<div class="tr" onclick="toggleFold(this)" style="color:\${col};padding-left:.5rem"><span class="tog">▼</span>\${t} (\${items.length})<span class="eye" onclick="toggleGroup(event,'eq','\${t}')">👁</span></div><div class="tc" id="grp-eq-\${t}">\`;
+    items.forEach(e=>{
+      h+=\`<div class="tr" id="tn-eq-\${e.id}" onclick="selItem('eq-\${e.id}')" style="padding-left:.8rem"><span class="tog"></span><span class="tl" style="color:\${col}" title="\${e.tag} — \${e.description}">\${e.tag}</span><span class="eye" onclick="hideItem(event,'eq-\${e.id}')">👁</span></div>\`;
+    });
+    h+='</div>';
+  });
+  h+='</div>';
+  // Structure
+  h+='<div class="tr" onclick="toggleFold(this)" style="color:#4a9aff;font-weight:600;margin-top:.4rem"><span class="tog">▼</span>Structure ('+mems.length+')<span class="eye" onclick="toggleGroup(event,\\'mem\\',null)">👁</span></div>';
+  h+='<div class="tc" id="grp-mem">';
+  Object.entries(memG).sort().forEach(([t,items])=>{
+    const col='#'+((MEM_COLORS[t]||MEM_COLORS.BEAM).toString(16).padStart(6,'0'));
+    h+=\`<div class="tr" onclick="toggleFold(this)" style="color:\${col};padding-left:.5rem"><span class="tog">▼</span>\${t} (\${items.length})<span class="eye" onclick="toggleGroup(event,'mem','\${t}')">👁</span></div><div class="tc" id="grp-mem-\${t}">\`;
+    items.forEach(m=>{
+      h+=\`<div class="tr" id="tn-mem-\${m.id}" onclick="selItem('mem-\${m.id}')" style="padding-left:.8rem"><span class="tog"></span><span class="tl" style="color:\${col}" title="\${m.tag} \${m.section} \${m.length}mm">\${m.tag}</span><span class="eye" onclick="hideItem(event,'mem-\${m.id}')">👁</span></div>\`;
+    });
+    h+='</div>';
+  });
+  h+='</div>';
+  tb.innerHTML=h;
+}
+window.toggleFold=function(row){
+  const ch=row.nextElementSibling; if(!ch)return;
+  const open=ch.style.display!=='none';
+  ch.style.display=open?'none':'';
+  row.querySelector('.tog').textContent=open?'▶':'▼';
+};
+window.hideItem=function(evt,id){
+  evt.stopPropagation();
+  const entry=allMeshes.find(o=>o.id===id);
+  if(!entry)return;
+  const vis=!entry.mesh.visible;
+  entry.mesh.visible=vis;
+  evt.currentTarget.textContent=vis?'👁':'🚫';
+};
+window.toggleGroup=function(evt,kind,subtype){
+  evt.stopPropagation();
+  const filt=allMeshes.filter(o=>o.type===(kind==='eq'?'EQUIPMENT':'MEMBER')&&(subtype?o.data.type===subtype:true));
+  const anyVis=filt.some(o=>o.mesh.visible);
+  filt.forEach(o=>{o.mesh.visible=!anyVis;});
+  // update eye icons
+  const prefix=kind==='eq'?'tn-eq-':'tn-mem-';
+  filt.forEach(o=>{
+    const id=kind==='eq'?o.data.id:o.data.id;
+    const row=document.getElementById(prefix+id);
+    if(row){const e=row.querySelector('.eye');if(e)e.textContent=anyVis?'🚫':'👁';}
+  });
+};
+window.selItem=function(id){
+  allMeshes.forEach(o=>{
+    if(!o.mesh.isMesh&&!o.mesh.isGroup)return;
+    o.mesh.traverse(c=>{if(c.isMesh&&c._origColor===undefined){c._origColor=c.material.color.getHex();}});
+  });
+  const entry=allMeshes.find(o=>o.id===id);
+  if(!entry)return;
+  entry.mesh.traverse(c=>{if(c.isMesh)c.material.color.setHex(0xFFD600);});
+  setTimeout(()=>{
+    entry.mesh.traverse(c=>{if(c.isMesh&&c._origColor!==undefined)c.material.color.setHex(c._origColor);});
+  },1500);
+};
+
+buildTree();
+fitAll();
+document.getElementById('status').textContent=DATA.equipment.length+' equipment · '+DATA.members.length+' members';
+
+(function animate(){requestAnimationFrame(animate);controls.update();labelGroup.children.forEach(s=>s.quaternion.copy(camera.quaternion));renderer.render(scene,camera);})();
+</script>
+</body></html>`;
+
+  // Download
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (title.replace(/[^a-zA-Z0-9_-]/g,'_') || 'epc_model') + '_3D.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ─── PUBLIC API (window.v3d) ─────────────────────────────────────
-window.v3d = { fitView, resetView, setView, toggleWire, toggleLabels, toggleNozzles };
+window.v3d = { fitView, resetView, setView, toggleWire, toggleLabels, toggleNozzles, exportHTML };
 
 window.on3DTabShow = function() {
   // Small delay so container has layout dimensions
