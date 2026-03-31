@@ -1208,8 +1208,7 @@ async function selectProject(pid){
   await Promise.all([loadEquipment(), loadLoadCases(), loadNodalLoads(), loadDistLoads(),
                      loadCombos(), loadRack(), loadSections()]);
   loadSummary();
-  // Notify the 3D module that a project was selected
-  document.dispatchEvent(new CustomEvent('projectSelected', { detail: pid }));
+  window._on3DProjectChange(pid);
 }
 
 async function saveProject(){
@@ -1947,6 +1946,33 @@ window.addEventListener('load', async () => {
   const sel = document.getElementById('projectSelect');
   if(sel.options.length > 1){ selectProject(sel.options[1].value); }
 });
+
+// ── 3D viewer bridge — safe to call before module loads ──────────
+// The module sets window.v3d when ready; we queue requests until then.
+window._3dQueue = [];   // {action, pid}
+
+window.on3DTabShow = function() {
+  const pid = window.currentProject;
+  if (!pid) return;
+  setTimeout(() => {
+    if (window.v3d && window.v3d._loadModel) {
+      window.v3d._loadModel(pid);
+    } else {
+      window._3dQueue.push({ action:'load', pid });
+    }
+  }, 120);
+};
+
+// Called by selectProject — triggers reload if tab is active
+window._on3DProjectChange = function(pid) {
+  const tab = document.querySelector('#tab3D');
+  if (!tab || !tab.classList.contains('active')) return;
+  if (window.v3d && window.v3d._loadModel) {
+    setTimeout(() => window.v3d._loadModel(pid), 200);
+  } else {
+    window._3dQueue.push({ action:'load', pid });
+  }
+};
 </script>
 
 <!-- ═══ THREE.JS 3D VIEWER MODULE ════════════════════════════════ -->
@@ -3222,29 +3248,20 @@ document.getElementById('status').textContent=DATA.equipment.length+' equipment 
   URL.revokeObjectURL(a.href);
 }
 
-// ─── PUBLIC API (window.v3d) ─────────────────────────────────────
-window.v3d = { fitView, resetView, setView, toggleWire, toggleLabels, toggleNozzles, exportHTML };
-
-window.on3DTabShow = function() {
-  // Small delay so container has layout dimensions
-  setTimeout(() => {
+// ─── PUBLIC API (window.v3d) — registered after module fully initialised ─
+window.v3d = {
+  fitView, resetView, setView, toggleWire, toggleLabels, toggleNozzles, exportHTML,
+  _loadModel: function(pid) {
     if (!sceneReady) initScene();
-    if (window.currentProject) loadModel(window.currentProject);
-  }, 80);
+    loadModel(pid);
+  },
 };
 
-window.refreshViewer = function() {
-  if (window.currentProject) loadModel(window.currentProject);
-};
-
-// Auto-reload 3D view when project changes and tab is already open
-document.addEventListener('projectSelected', (e) => {
-  const pid = e.detail;
-  const tab = document.querySelector('#tab3D');
-  if (tab && tab.classList.contains('active') && pid) {
-    setTimeout(() => loadModel(pid), 200);
-  }
+// Drain anything queued before the module was ready
+(window._3dQueue || []).forEach(item => {
+  if (item.action === 'load') window.v3d._loadModel(item.pid);
 });
+window._3dQueue = [];
 </script>
 </body>
 </html>
