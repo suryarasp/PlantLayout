@@ -3022,7 +3022,7 @@ canvas{display:block}
   </div>
   <div class="status" id="status">Loading…</div>
 </div>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"}}<\/script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -3236,7 +3236,7 @@ fitAll();
 document.getElementById('status').textContent=DATA.equipment.length+' equipment · '+DATA.members.length+' members';
 
 (function animate(){requestAnimationFrame(animate);controls.update();labelGroup.children.forEach(s=>s.quaternion.copy(camera.quaternion));renderer.render(scene,camera);})();
-</script>
+<\/script>
 </body></html>`;
 
   // Download
